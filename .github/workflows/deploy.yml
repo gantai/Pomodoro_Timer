@@ -1,0 +1,34 @@
+name: Deploy to Cloudflare
+
+# Deploys on every push to main, and on demand from the Actions tab.
+# Needs two repository secrets:
+#   CLOUDFLARE_API_TOKEN   — created from the "Edit Cloudflare Workers" template
+#   CLOUDFLARE_ACCOUNT_ID  — the account ID from your Cloudflare dashboard sidebar
+# This is an alternative to the dashboard's git integration; nothing here
+# depends on that connection existing.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # No build step — public/ ships as-is and wrangler bundles src/ on deploy.
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
