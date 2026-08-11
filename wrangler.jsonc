@@ -1,8 +1,11 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "group-pomodoro",
+  // Must match the Worker in the dashboard, or deploy creates a second one.
+  "name": "pomodoro-timer",
   "main": "src/index.js",
   "compatibility_date": "2025-04-01",
+  // Serve on <name>.<subdomain>.workers.dev without enabling it by hand.
+  "workers_dev": true,
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
