@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "group-pomodoro",
+  "main": "src/index.js",
+  "compatibility_date": "2025-04-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    // /r/<room> is a client-side route, so unmatched paths serve index.html.
+    "not_found_handling": "single-page-application",
+    // ...but the sync endpoint must reach the Worker, not the SPA fallback.
+    "run_worker_first": ["/api/*"]
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "ROOM", "class_name": "TimerRoom" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["TimerRoom"] }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

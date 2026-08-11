@@ -1,0 +1,16 @@
+{
+  "name": "group-pomodoro",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A Pomodoro timer a group of people can share, synced in real time on Cloudflare Workers.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node test/sync.test.mjs",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.20.0"
+  }
+}

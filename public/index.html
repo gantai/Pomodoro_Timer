@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Pomo Together — a shared Pomodoro timer</title>
+    <meta name="description" content="A Pomodoro timer a whole group can share. Create a room, send the link, and everyone's clock stays in sync." />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8D%85%3C/text%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <!-- Landing -->
+    <main id="landing" class="view" hidden>
+      <div class="card card--landing">
+        <h1 class="wordmark">Pomo<span>Together</span></h1>
+        <p class="lede">A Pomodoro timer a group can share. Start a room, send the link — every clock counts down together.</p>
+        <button id="create" class="btn btn--primary btn--block">Create a room</button>
+        <form id="joinForm" class="join">
+          <label class="join__label" for="joinCode">or join with a room code</label>
+          <div class="join__row">
+            <input id="joinCode" class="input" type="text" placeholder="quiet-ember-42" autocomplete="off" spellcheck="false" />
+            <button class="btn" type="submit">Join</button>
+          </div>
+        </form>
+        <p class="fineprint">No sign-up, no accounts. Anyone with the link can join and control the timer.</p>
+      </div>
+    </main>
+
+    <!-- Room -->
+    <main id="room" class="view" hidden>
+      <div class="card" id="roomCard">
+        <header class="card__head">
+          <button id="roomCode" class="roomcode" title="Copy the room link">
+            <span id="roomCodeText">—</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14"><path d="M9 9h10v10H9z"/><path d="M5 15V5h10"/></svg>
+          </button>
+          <div class="head__right">
+            <span id="presence" class="presence" title="People in this room">
+              <span class="dot" id="presenceDot"></span><span id="presenceText">connecting…</span>
+            </span>
+            <button id="settingsBtn" class="iconbtn" title="Timer lengths" aria-label="Timer settings">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2.1"/><circle cx="15" cy="12" r="2.1"/><circle cx="9" cy="17" r="2.1"/></svg>
+            </button>
+          </div>
+        </header>
+
+        <nav class="phases" id="phases" aria-label="Timer phase">
+          <button class="phase" data-phase="focus">Focus</button>
+          <button class="phase" data-phase="short">Short break</button>
+          <button class="phase" data-phase="long">Long break</button>
+        </nav>
+
+        <div class="clock">
+          <div id="time" class="time">--:--</div>
+          <div id="meta" class="meta">Round 1 of 4</div>
+          <div class="track"><div id="progress" class="track__fill"></div></div>
+        </div>
+
+        <div class="controls">
+          <button id="primary" class="btn btn--primary btn--wide">Start</button>
+          <button id="skip" class="btn" title="Jump to the next phase">Skip</button>
+          <button id="reset" class="btn" title="Reset this phase">Reset</button>
+        </div>
+
+        <footer class="card__foot">
+          <div id="members" class="members"></div>
+          <div id="activity" class="activity">—</div>
+        </footer>
+      </div>
+
+      <!-- Settings -->
+      <div id="sheet" class="sheet" hidden>
+        <div class="sheet__panel" role="dialog" aria-modal="true" aria-label="Timer settings">
+          <div class="sheet__head">
+            <h2>Timer lengths</h2>
+            <button id="sheetClose" class="iconbtn" aria-label="Close settings">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+          </div>
+
+          <div class="presets" id="presets">
+            <button class="chip" data-preset="25,5,15,4">Classic 25 / 5 / 15</button>
+            <button class="chip" data-preset="50,10,30,2">Deep 50 / 10 / 30</button>
+            <button class="chip" data-preset="15,3,15,4">Sprint 15 / 3 / 15</button>
+          </div>
+
+          <label class="field">
+            <span>Focus</span>
+            <span class="field__ctl"><input id="setFocus" class="input input--num" type="number" min="1" max="180" step="1" /><em>min</em></span>
+          </label>
+          <label class="field">
+            <span>Short break</span>
+            <span class="field__ctl"><input id="setShort" class="input input--num" type="number" min="1" max="180" step="1" /><em>min</em></span>
+          </label>
+          <label class="field">
+            <span>Long break</span>
+            <span class="field__ctl"><input id="setLong" class="input input--num" type="number" min="1" max="180" step="1" /><em>min</em></span>
+          </label>
+          <label class="field">
+            <span>Long break every</span>
+            <span class="field__ctl"><input id="setRounds" class="input input--num" type="number" min="1" max="12" step="1" /><em>rounds</em></span>
+          </label>
+
+          <label class="field field--toggle">
+            <span>Auto-start next phase</span>
+            <input id="setAuto" type="checkbox" class="switch" />
+          </label>
+          <label class="field field--toggle">
+            <span>Chime when a phase ends</span>
+            <input id="setSound" type="checkbox" class="switch" />
+          </label>
+
+          <p class="fineprint">Changes apply to everyone in the room. A new length takes effect at the start of the next phase if the clock is already running.</p>
+        </div>
+      </div>
+    </main>
+
+    <div id="toast" class="toast" hidden></div>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
