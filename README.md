@@ -29,6 +29,16 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
 
 - **Shared rooms** — `/r/quiet-ember-42`. Anyone with the link can join and
   control the timer. Participants are anonymous (`Guest 1`, `Guest 2`, …).
+- **The same link every day.** A room keeps its settings, so a group can
+  bookmark one address and reuse it indefinitely. Name your own
+  (`/r/design-standup`) by typing it on the landing page — a room is created
+  the first time someone opens it, so there is no "create" step to get wrong.
+  The landing page also lists the rooms this browser has opened, newest first.
+- **Rooms expire after 30 days without use.** `RoomIndex`, a single Durable
+  Object, records each room's last use and sweeps daily, wiping the storage of
+  anything untouched for 30 days. The room list is kept per-browser in
+  `localStorage`, never server-side: a public list of live rooms would let
+  anyone enumerate them and reset a group's timer.
 - **Custom lengths** — focus, short break and long break are each free to set
   from 1 to 180 minutes, plus how many rounds precede a long break. Changes
   apply to everyone. Presets: Classic 25/5/15, Deep 50/10/30, Sprint 15/3/15.
@@ -45,7 +55,9 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
 - **Live presence and activity** — who's here, and who last started or paused.
 - **Survives everything** — refresh, reconnect, and a late joiner picks up the
   timer mid-flight. Room state is persisted in the Durable Object.
-- Light and dark, keyboard `Space` to start/pause, phase shown in the tab title.
+- Light and dark, phase and remaining time shown in the tab title. The timer is
+  driven by the on-screen controls only — there is deliberately no keyboard
+  shortcut, so a stray keypress cannot reset a room everyone is working in.
 
 ## The interface
 
@@ -72,6 +84,9 @@ the shared timer — start/pause/reset, the skip cycle, custom lengths and their
 clamping, presence, and a late joiner inheriting a running clock. `SLOW=1 npm
 test` also waits out a real 60-second phase to exercise the storage alarm.
 
+`npm run test:expiry` needs no server: it runs the 30-day sweep against a stub
+storage layer, so rooms can be aged arbitrarily without waiting a month.
+
 ## Deploy to Cloudflare
 
 ```bash
@@ -96,6 +111,7 @@ To serve it from your own domain, add a route in `wrangler.jsonc`:
 ```
 src/index.js      Worker: routes /api/room/<id> to the room, everything else to assets
 src/room.js       TimerRoom Durable Object — the shared clock
+src/roomIndex.js  RoomIndex Durable Object — last-use record and the 30-day sweep
 public/index.html Landing page + room app shell
 public/styles.css Layout, theming, phase accent
 public/app.js     WebSocket client, clock-offset correction, rendering, chime

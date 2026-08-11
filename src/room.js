@@ -21,8 +21,12 @@ const DEFAULT_SETTINGS = {
 
 const MAX_LOG = 12;
 
+/** Rooms untouched for this long are wiped — see RoomIndex. */
+const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+
 function defaultState() {
   return {
+    lastSeen: Date.now(),
     phase: "focus",
     running: false,
     endsAt: null,
@@ -60,14 +64,37 @@ export class TimerRoom {
     this.state = defaultState();
     ctx.blockConcurrencyWhile(async () => {
       const stored = await ctx.storage.get("state");
-      if (stored) this.state = { ...defaultState(), ...stored };
+      if (!stored) return;
+      // Belt and braces: the index sweeps stale rooms daily, but if one is
+      // reopened after 30 days before the sweep reaches it, start it fresh
+      // rather than resurrecting month-old settings.
+      if (stored.lastSeen && Date.now() - stored.lastSeen > THIRTY_DAYS) {
+        await ctx.storage.deleteAll();
+        return;
+      }
+      this.state = { ...defaultState(), ...stored };
     });
   }
 
   async fetch(request) {
+    const url = new URL(request.url);
+
+    // Internal, from RoomIndex's pruning alarm. Not reachable from outside:
+    // the Worker only ever forwards /api/room/<id> here.
+    if (url.pathname === "/expire") {
+      for (const ws of this.ctx.getWebSockets()) ws.close(1000, "room expired");
+      await this.ctx.storage.deleteAll();
+      this.state = defaultState();
+      return new Response("expired");
+    }
+
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected WebSocket upgrade", { status: 426 });
     }
+
+    this.roomId = request.headers.get("X-Room-Id") || this.roomId;
+    this.state.lastSeen = Date.now();
+    this.touchIndex();
 
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
@@ -100,6 +127,8 @@ export class TimerRoom {
     const me = ws.deserializeAttachment() || { name: "Someone" };
     const s = this.state;
     const now = Date.now();
+    s.lastSeen = now;
+    this.touchIndex();
 
     switch (msg.type) {
       case "ping":
@@ -229,6 +258,28 @@ export class TimerRoom {
       this.addLog(`${this.phaseLabel(finishedPhase)} finished — ${this.phaseLabel(s.phase)} is up next`);
     }
     return finishedPhase;
+  }
+
+  /**
+   * Record this room in the index so the 30-day sweep can find it. Rate
+   * limited: a busy room would otherwise hammer the single index object on
+   * every click, and day-granularity is all the expiry needs.
+   */
+  touchIndex() {
+    const now = Date.now();
+    if (!this.roomId || now - (this.lastTouch || 0) < 60 * 60 * 1000) return;
+    this.lastTouch = now;
+    const stub = this.env.INDEX.get(this.env.INDEX.idFromName("v1"));
+    this.ctx.waitUntil(
+      stub
+        .fetch("https://index/touch", {
+          method: "POST",
+          body: JSON.stringify({ id: this.roomId, at: now }),
+        })
+        .catch(() => {
+          this.lastTouch = 0; // let the next visitor retry
+        }),
+    );
   }
 
   phaseDuration(phase) {

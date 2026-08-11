@@ -33,6 +33,74 @@ function normalizeRoomId(raw) {
 
 const PHASE_NAME = { focus: "Focus", short: "Short break", long: "Long break" };
 
+/* ---------------- remembered rooms ----------------
+   Kept in this browser rather than on the server: a public list of live rooms
+   would let anyone enumerate them and reset a group's timer. Mirrors the
+   server's 30-day expiry so the list never offers a room that is already gone. */
+
+const STORE_KEY = "pomo.rooms";
+const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+const MAX_REMEMBERED = 8;
+
+function loadRooms() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORE_KEY) || "[]");
+    if (!Array.isArray(raw)) return [];
+    const cutoff = Date.now() - THIRTY_DAYS;
+    return raw
+      .filter((r) => r && typeof r.id === "string" && typeof r.at === "number" && r.at > cutoff)
+      .sort((a, b) => b.at - a.at)
+      .slice(0, MAX_REMEMBERED);
+  } catch {
+    return [];
+  }
+}
+
+function saveRooms(rooms) {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(rooms));
+  } catch {
+    /* private browsing or storage full — the feature is a convenience */
+  }
+}
+
+function rememberRoom(id) {
+  const rooms = loadRooms().filter((r) => r.id !== id);
+  rooms.unshift({ id, at: Date.now() });
+  saveRooms(rooms.slice(0, MAX_REMEMBERED));
+}
+
+function forgetRoom(id) {
+  saveRooms(loadRooms().filter((r) => r.id !== id));
+  renderRooms();
+}
+
+function renderRooms() {
+  const rooms = loadRooms();
+  const section = $("recent");
+  if (!section) return;
+  section.hidden = rooms.length === 0;
+  $("recentList").innerHTML = rooms
+    .map(
+      (r) => `<li class="recent__item">
+        <a href="/r/${encodeURIComponent(r.id)}" data-room="${esc(r.id)}">${esc(r.id)}</a>
+        <span>${ago(r.at)}</span>
+        <button class="forget" data-forget="${esc(r.id)}" aria-label="Forget ${esc(r.id)}" title="Remove from this list">&times;</button>
+      </li>`,
+    )
+    .join("");
+
+  for (const a of $("recentList").querySelectorAll("a[data-room]")) {
+    a.onclick = (e) => {
+      e.preventDefault();
+      go(a.dataset.room);
+    };
+  }
+  for (const b of $("recentList").querySelectorAll("[data-forget]")) {
+    b.onclick = () => forgetRoom(b.dataset.forget);
+  }
+}
+
 /* ---------------- Landing ---------------- */
 
 function showLanding() {
@@ -44,9 +112,10 @@ function showLanding() {
   $("joinForm").onsubmit = (e) => {
     e.preventDefault();
     const id = normalizeRoomId($("joinCode").value);
-    if (!id) return toast("That doesn't look like a room code");
+    if (!id) return toast("Use letters, numbers and hyphens — at least 3 characters");
     go(id);
   };
+  renderRooms();
 }
 
 function go(roomId) {
@@ -78,6 +147,7 @@ class Room {
     this.activityPaintedAt = 0;
 
     $("roomCodeText").textContent = id;
+    rememberRoom(id);
     this.bind();
     this.connect();
     this.ticker = setInterval(() => this.paint(), 200);
@@ -88,7 +158,6 @@ class Room {
     this.dead = true;
     clearInterval(this.ticker);
     clearInterval(this.pinger);
-    document.onkeydown = null;
     if (this.ws) {
       this.ws.onclose = null;
       this.ws.close();
@@ -286,17 +355,6 @@ class Room {
         this.pushSettings();
       };
     }
-
-    document.onkeydown = (e) => {
-      if (e.target.matches("input, textarea")) {
-        if (e.key === "Escape") e.target.blur();
-        return;
-      }
-      if (e.code === "Space") {
-        e.preventDefault();
-        $("primary").click();
-      }
-    };
   }
 
   fillSettings(s) {
@@ -341,7 +399,10 @@ function ago(ts) {
   if (secs < 60) return `${secs}s ago`;
   const mins = Math.round(secs / 60);
   if (mins < 60) return `${mins}m ago`;
-  return `${Math.round(mins / 60)}h ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return days === 1 ? "yesterday" : `${days}d ago`;
 }
 
 function esc(s) {
@@ -364,10 +425,24 @@ function toast(text) {
    the first click or keypress rather than at the moment the phase ends. */
 
 let audioCtx = null;
+let master = null;
 
 function unlockAudio() {
   try {
     audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+    if (!master) {
+      // Notes overlap, so their peaks sum. A limiter lets us drive the chime
+      // hard enough to hear across a room without the sum clipping into buzz.
+      const limiter = audioCtx.createDynamicsCompressor();
+      limiter.threshold.value = -2;
+      limiter.knee.value = 0;
+      limiter.ratio.value = 20;
+      limiter.attack.value = 0.002;
+      limiter.release.value = 0.25;
+      master = audioCtx.createGain();
+      master.gain.value = 1;
+      master.connect(limiter).connect(audioCtx.destination);
+    }
     if (audioCtx.state === "suspended") audioCtx.resume();
   } catch {
     /* no Web Audio in this browser */
@@ -376,17 +451,23 @@ function unlockAudio() {
 addEventListener("pointerdown", unlockAudio);
 addEventListener("keydown", unlockAudio);
 
+/* A pure sine is the quietest thing a speaker can make at a given amplitude —
+   there is nothing but the fundamental. Each note is a triangle (harmonics
+   give it body) plus a softer octave above (presence, so it carries over
+   background noise) rather than one louder sine. */
 function tone(freq, at, len, gainPeak) {
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = "sine";
-  osc.frequency.value = freq; // one steady pitch per note
-  gain.gain.setValueAtTime(0.0001, at);
-  gain.gain.exponentialRampToValueAtTime(gainPeak, at + 0.015);
-  gain.gain.exponentialRampToValueAtTime(0.0001, at + len);
-  osc.connect(gain).connect(audioCtx.destination);
-  osc.start(at);
-  osc.stop(at + len + 0.05);
+  for (const [type, mult, share] of [["triangle", 1, 1], ["sine", 2, 0.4]]) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq * mult;
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.exponentialRampToValueAtTime(gainPeak * share, at + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + len);
+    osc.connect(gain).connect(master);
+    osc.start(at);
+    osc.stop(at + len + 0.05);
+  }
 }
 
 /**
@@ -404,7 +485,9 @@ function sectionEnded(finishedFocus) {
   const notes = finishedFocus
     ? [ [587.33, 0.0], [880.0, 0.16], [1174.66, 0.32] ]   // work done: rising, "go rest"
     : [ [880.0, 0.0], [659.25, 0.18], [523.25, 0.36] ];    // rest done: falling, "back to it"
-  for (const [freq, offset] of notes) tone(freq, t + offset, 0.42, 0.2);
+  for (const [freq, offset] of notes) tone(freq, t + offset, 0.5, 0.65);
+  // A second pass a beat later — a notification you can miss isn't one.
+  for (const [freq, offset] of notes) tone(freq, t + 0.9 + offset, 0.5, 0.55);
 }
 
 /* ---------------- routing ---------------- */

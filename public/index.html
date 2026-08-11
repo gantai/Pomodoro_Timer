@@ -30,11 +30,17 @@
           <div class="hero__actions">
             <button id="create" class="btn btn--primary btn--lg">Create a room</button>
             <form id="joinForm" class="join">
-              <input id="joinCode" class="input" type="text" placeholder="or paste a room code" autocomplete="off" spellcheck="false" />
-              <button class="btn btn--lg" type="submit">Join</button>
+              <input id="joinCode" class="input" type="text" placeholder="or name one, e.g. standup" autocomplete="off" spellcheck="false" />
+              <button class="btn btn--lg" type="submit">Open</button>
             </form>
           </div>
-          <p class="fineprint">No sign-up, no accounts, nothing to install.</p>
+          <p class="fineprint">No sign-up, no accounts, nothing to install. Naming a room gives your group a link worth bookmarking — reopen it tomorrow and your settings are still there.</p>
+
+          <section class="recent" id="recent" hidden>
+            <h2 class="recent__title">Your rooms</h2>
+            <ul class="recent__list" id="recentList"></ul>
+            <p class="fineprint">Remembered on this device only. A room is deleted after 30 days without use.</p>
+          </section>
         </div>
 
         <div class="hero__demo" aria-hidden="true">
@@ -102,7 +108,7 @@
             <button id="skip" class="btn btn--lg" title="Jump to the next phase">Skip</button>
             <button id="reset" class="btn btn--lg" title="Restart this phase">Reset</button>
           </div>
-          <p class="hint">Press <kbd>Space</kbd> to start or pause · everyone in the room sees it</p>
+          <p class="hint">Start, pause and skip are shared — everyone in the room sees them</p>
         </main>
 
         <!-- Right rail -->

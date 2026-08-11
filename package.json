@@ -9,6 +9,7 @@
     "build": "echo 'No build step: public/ is served as-is and wrangler bundles the Worker at deploy time.'",
     "deploy": "wrangler deploy",
     "test": "node test/sync.test.mjs",
+    "test:expiry": "node test/expiry.test.mjs",
     "tail": "wrangler tail"
   },
   "devDependencies": {

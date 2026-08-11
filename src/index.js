@@ -1,6 +1,7 @@
 import { TimerRoom } from "./room.js";
+import { RoomIndex } from "./roomIndex.js";
 
-export { TimerRoom };
+export { TimerRoom, RoomIndex };
 
 const ROOM_ID_RE = /^[a-z0-9-]{3,48}$/;
 
@@ -15,8 +16,12 @@ export default {
       if (!ROOM_ID_RE.test(roomId)) {
         return new Response("Invalid room id", { status: 400 });
       }
+      // The room needs its own name to register itself in the index; a
+      // Durable Object cannot read the name it was looked up by.
+      const forwarded = new Request(request);
+      forwarded.headers.set("X-Room-Id", roomId);
       const stub = env.ROOM.get(env.ROOM.idFromName(roomId));
-      return stub.fetch(request);
+      return stub.fetch(forwarded);
     }
 
     if (url.pathname.startsWith("/api/")) {
