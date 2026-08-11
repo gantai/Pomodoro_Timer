@@ -75,6 +75,7 @@ class Room {
     this.retry = 0;
     this.dead = false;
     this.lastChimeAt = 0;
+    this.activityPaintedAt = 0;
 
     $("roomCodeText").textContent = id;
     this.bind();
@@ -119,7 +120,7 @@ class Room {
         this.me = msg.you;
         if (!this.greeted) {
           this.greeted = true;
-          if (msg.members.length === 1) toast("You're first in — tap the room code to copy the invite link");
+          if (msg.members.length === 1) toast("You're first in — copy the invite link to bring your group");
         }
       }
       if (msg.type === "welcome" || msg.type === "state") {
@@ -159,10 +160,14 @@ class Room {
     const prev = this.state;
     this.state = msg;
 
-    if (msg.chime && msg.settings.sound && Date.now() - this.lastChimeAt > 1500) {
+    // Every section end — work or rest — announces itself.
+    if (msg.chime && Date.now() - this.lastChimeAt > 1500) {
       this.lastChimeAt = Date.now();
-      chime(msg.chime === "focus");
+      const finishedFocus = msg.chime === "focus";
+      if (msg.settings.sound) sectionEnded(finishedFocus);
+      toast(finishedFocus ? "Focus finished — time for a break" : "Break over — back to focus");
     }
+
     if (!prev || prev.phase !== msg.phase) document.body.dataset.phase = msg.phase;
     if (!this.settingsDirty) this.fillSettings(msg.settings);
 
@@ -184,20 +189,28 @@ class Room {
       btn.setAttribute("aria-selected", String(btn.dataset.phase === s.phase));
     }
 
-    $("primary").textContent = s.running ? "Pause" : this.remainingMs() > 0 ? "Start" : "Start";
+    $("primary").textContent = s.running ? "Pause" : "Start";
     document.body.classList.toggle("paused", !s.running);
 
     const n = s.members.length;
-    $("presenceText").textContent = n === 1 ? "just you" : `${n} here`;
+    $("presenceText").textContent = n === 1 ? "just you" : `${n} people`;
 
     $("members").innerHTML = s.members
       .map((m) => {
         const mine = this.me && m.id === this.me.id;
-        return `<span class="who${mine ? " who--me" : ""}">${esc(m.name)}${mine ? " (you)" : ""}</span>`;
+        return `<div class="who${mine ? " who--me" : ""}"><i></i>${esc(m.name)}${mine ? " <span>you</span>" : ""}</div>`;
       })
       .join("");
 
-    $("activity").textContent = s.log.length ? `${s.log[0].text} · ${ago(s.log[0].ts)}` : "—";
+    this.paintActivity();
+  }
+
+  paintActivity() {
+    const log = this.state?.log || [];
+    this.activityPaintedAt = Date.now();
+    $("activity").innerHTML = log.length
+      ? log.map((e) => `<li>${esc(e.text)}<time>${ago(e.ts)}</time></li>`).join("")
+      : `<li class="empty">Nothing yet — start the timer.</li>`;
   }
 
   paint() {
@@ -215,19 +228,19 @@ class Room {
     const shown = Math.min(s.settings.roundsBeforeLong, Math.max(1, roundInCycle));
     $("meta").textContent =
       `${PHASE_NAME[s.phase]} · round ${shown} of ${s.settings.roundsBeforeLong}` +
-      (s.completed ? ` · ${s.completed} done today` : "");
+      (s.completed ? ` · ${s.completed} focus session${s.completed === 1 ? "" : "s"} done` : "");
 
     document.title = `${label} · ${PHASE_NAME[s.phase]}${s.running ? "" : " (paused)"}`;
 
-    // Keep the relative timestamp honest without another server round trip.
-    if (s.log.length) $("activity").textContent = `${s.log[0].text} · ${ago(s.log[0].ts)}`;
+    // Keep the "2m ago" stamps honest without redrawing on every frame.
+    if (Date.now() - this.activityPaintedAt > 15_000) this.paintActivity();
   }
 
   setPresence(kind) {
     const dot = $("presenceDot");
     dot.classList.toggle("live", kind === "live");
     dot.classList.toggle("down", kind === "down");
-    if (kind === "down") $("presenceText").textContent = "reconnecting…";
+    $("connStatus").textContent = kind === "live" ? "in sync" : "reconnecting…";
   }
 
   /* --- input --- */
@@ -245,27 +258,22 @@ class Room {
       const link = `${location.origin}/r/${this.id}`;
       try {
         await navigator.clipboard.writeText(link);
-        toast("Room link copied — send it to your group");
+        toast("Invite link copied — send it to your group");
       } catch {
         prompt("Copy this link:", link);
       }
     };
 
-    $("settingsBtn").onclick = () => {
-      $("sheet").hidden = false;
-    };
-    $("sheetClose").onclick = () => this.closeSheet();
-    $("sheet").onclick = (e) => {
-      if (e.target === $("sheet")) this.closeSheet();
-    };
-
-    const inputs = ["setFocus", "setShort", "setLong", "setRounds", "setAuto", "setSound"];
-    for (const id of inputs) {
+    for (const id of ["setFocus", "setShort", "setLong", "setRounds", "setAuto", "setSound"]) {
       const el = $(id);
       el.oninput = () => {
         this.settingsDirty = true;
       };
       el.onchange = () => this.pushSettings();
+      el.onblur = () => {
+        this.settingsDirty = false;
+        if (this.state) this.fillSettings(this.state.settings);
+      };
     }
 
     for (const chip of document.querySelectorAll("[data-preset]")) {
@@ -280,22 +288,15 @@ class Room {
     }
 
     document.onkeydown = (e) => {
-      if (e.target.matches("input")) {
+      if (e.target.matches("input, textarea")) {
         if (e.key === "Escape") e.target.blur();
         return;
       }
-      if (e.key === "Escape" && !$("sheet").hidden) this.closeSheet();
       if (e.code === "Space") {
         e.preventDefault();
         $("primary").click();
       }
     };
-  }
-
-  closeSheet() {
-    $("sheet").hidden = true;
-    this.settingsDirty = false;
-    if (this.state) this.fillSettings(this.state.settings);
   }
 
   fillSettings(s) {
@@ -353,34 +354,57 @@ function toast(text) {
   el.textContent = text;
   el.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (el.hidden = true), 2600);
+  toastTimer = setTimeout(() => (el.hidden = true), 3200);
 }
 
-/* A short two-note chime, synthesised so there's no asset to load.
-   Browsers block audio until the page has been interacted with — by the time
-   a phase ends someone has always clicked Start. */
-let audioCtx;
-function chime(endedFocus) {
+/* ---------------- notification sound ----------------
+   Every section end — focus or break — plays a chime. It's synthesised, so
+   there's no audio file to load or fail. Browsers refuse to start audio until
+   the page has been interacted with, so the context is created and unlocked on
+   the first click or keypress rather than at the moment the phase ends. */
+
+let audioCtx = null;
+
+function unlockAudio() {
   try {
     audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === "suspended") audioCtx.resume();
-    const notes = endedFocus ? [660, 880] : [880, 660];
-    notes.forEach((freq, i) => {
-      const t = audioCtx.currentTime + i * 0.18;
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.22, t + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
-      osc.connect(gain).connect(audioCtx.destination);
-      osc.start(t);
-      osc.stop(t + 0.55);
-    });
   } catch {
-    /* no audio available — the visual phase change is the fallback */
+    /* no Web Audio in this browser */
   }
+}
+addEventListener("pointerdown", unlockAudio);
+addEventListener("keydown", unlockAudio);
+
+function tone(freq, at, len, gainPeak) {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = "sine";
+  osc.frequency.value = freq; // one steady pitch per note
+  gain.gain.setValueAtTime(0.0001, at);
+  gain.gain.exponentialRampToValueAtTime(gainPeak, at + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, at + len);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(at);
+  osc.stop(at + len + 0.05);
+}
+
+/**
+ * @param {boolean} finishedFocus true when work just ended (rest is next),
+ *   false when rest ended and it's back to work. The two get different
+ *   patterns so you can tell them apart without looking at the screen.
+ */
+function sectionEnded(finishedFocus) {
+  unlockAudio();
+  if (!audioCtx || audioCtx.state !== "running") {
+    // Autoplay still blocked — the phase colour and toast carry the message.
+    return;
+  }
+  const t = audioCtx.currentTime + 0.02;
+  const notes = finishedFocus
+    ? [ [587.33, 0.0], [880.0, 0.16], [1174.66, 0.32] ]   // work done: rising, "go rest"
+    : [ [880.0, 0.0], [659.25, 0.18], [523.25, 0.36] ];    // rest done: falling, "back to it"
+  for (const [freq, offset] of notes) tone(freq, t + offset, 0.42, 0.2);
 }
 
 /* ---------------- routing ---------------- */

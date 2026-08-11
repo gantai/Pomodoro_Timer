@@ -33,11 +33,30 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
   from 1 to 180 minutes, plus how many rounds precede a long break. Changes
   apply to everyone. Presets: Classic 25/5/15, Deep 50/10/30, Sprint 15/3/15.
 - **Full cycle** — focus → short break → focus → … → long break, with an
-  optional auto-start for the next phase and a chime when a phase ends.
+  optional auto-start for the next phase.
+- **A chime ends every session**, work or rest, on every screen in the room at
+  once. The two are different patterns — rising when focus ends, falling when a
+  break does — so you can tell them apart without looking. The sound is
+  synthesised with the Web Audio API, so there is no audio file to load or
+  fail. Browsers block audio until a page has been interacted with, so the
+  audio context is created and unlocked on the first click or keypress rather
+  than at the moment a phase ends; if it is still blocked, the phase colour and
+  an on-screen notice carry the message.
 - **Live presence and activity** — who's here, and who last started or paused.
 - **Survives everything** — refresh, reconnect, and a late joiner picks up the
   timer mid-flight. Room state is persisted in the Durable Object.
 - Light and dark, keyboard `Space` to start/pause, phase shown in the tab title.
+
+## The interface
+
+Built for a browser window rather than a phone screen: a full-width app shell
+with a top bar (room code and one-click invite link, connection state), a large
+timer stage, and a right rail carrying the people in the room, the timer
+lengths as an always-visible inline panel, and the full activity feed. Phase
+colour is the only accent — warm red for focus, green for a short break, blue
+for a long one — so the room's state is readable across an office. The layout
+collapses the rail beneath the stage below 860px, but the desktop window is
+what it is designed around.
 
 ## Run it locally
 
@@ -77,9 +96,9 @@ To serve it from your own domain, add a route in `wrangler.jsonc`:
 ```
 src/index.js      Worker: routes /api/room/<id> to the room, everything else to assets
 src/room.js       TimerRoom Durable Object — the shared clock
-public/index.html Landing + room markup
-public/styles.css Minimal card; phase colour is the only accent
-public/app.js     WebSocket client, clock-offset correction, rendering
+public/index.html Landing page + room app shell
+public/styles.css Layout, theming, phase accent
+public/app.js     WebSocket client, clock-offset correction, rendering, chime
 ```
 
 ## Protocol
