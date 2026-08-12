@@ -1,10 +1,28 @@
 # Pomo Together
 
+### ▶ **[pomodoro-timer.johnyip414.workers.dev](https://pomodoro-timer.johnyip414.workers.dev/)**
+
 A Pomodoro timer a group of people can share. One person creates a room, sends
 the link, and everyone's clock counts down together — start, pause, skip and
 timer lengths are all shared, in real time.
 
-No accounts, no database, no build step. Runs entirely on Cloudflare Workers.
+Free to use, open to anyone. No accounts, no database, no build step. Runs
+entirely on Cloudflare Workers.
+
+## Using it
+
+1. Open **[the timer](https://pomodoro-timer.johnyip414.workers.dev/)** and hit
+   *Create a room* — or type a name like `design-standup` to get a link your
+   group can reuse every day.
+2. Send that link to everyone. They join instantly; there is nothing to sign up
+   for or install.
+3. Anyone in the room can start, pause, skip, or change the focus and break
+   lengths. Every screen stays in step, and a chime marks the end of each
+   session.
+
+A room keeps its settings for as long as you keep using it, and is deleted
+after 30 days without use. Anyone holding the link can control that room's
+timer, so share it the way you would a meeting link.
 
 ## How it works
 
