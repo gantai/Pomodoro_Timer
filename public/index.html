@@ -116,6 +116,7 @@
           <section class="panel">
             <h2 class="panel__title">In this room <span id="presenceText" class="count">—</span></h2>
             <div id="members" class="members"></div>
+            <button id="rename" class="linkbtn" type="button">Change your name</button>
           </section>
 
           <section class="panel">
@@ -158,6 +159,19 @@
           </section>
         </aside>
       </div>
+    </div>
+
+    <!-- Name gate: shown on a first join, and again on "Change your name" -->
+    <div id="nameGate" class="gate" hidden>
+      <form class="gate__panel" id="nameForm" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
+        <h2 id="gateTitle" class="gate__title">What should we call you?</h2>
+        <p class="gate__note">Everyone in <b id="gateRoom">this room</b> sees this name next to what you do.</p>
+        <input id="nameInput" class="input gate__input" type="text" maxlength="24" placeholder="Your name" autocomplete="nickname" spellcheck="false" />
+        <div class="gate__actions">
+          <button class="btn btn--primary btn--lg" type="submit">Join the room</button>
+          <button class="btn btn--lg" type="button" id="nameSkip">Stay anonymous</button>
+        </div>
+      </form>
     </div>
 
     <div id="toast" class="toast" hidden></div>

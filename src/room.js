@@ -39,6 +39,23 @@ function defaultState() {
   };
 }
 
+const MAX_NAME = 24;
+
+/**
+ * Display names are typed by strangers and rendered in everyone's browser, so
+ * they are normalised here rather than trusted. The client escapes on render
+ * too; angle brackets are stripped as a second line of defence.
+ */
+function cleanName(raw) {
+  if (typeof raw !== "string") return null;
+  const name = raw
+    .replace(/[\u0000-\u001F\u007F<>]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_NAME);
+  return name || null;
+}
+
 function clampInt(value, min, max, fallback) {
   const n = Math.round(Number(value));
   if (!Number.isFinite(n)) return fallback;
@@ -100,9 +117,11 @@ export class TimerRoom {
     const [client, server] = Object.values(pair);
 
     this.state.guestSeq += 1;
+    // A name chosen before connecting arrives on the URL, so nobody in the
+    // room ever sees a flash of "Guest 4" before it resolves.
     const member = {
       id: crypto.randomUUID().slice(0, 8),
-      name: `Guest ${this.state.guestSeq}`,
+      name: cleanName(url.searchParams.get("name")) || `Guest ${this.state.guestSeq}`,
     };
     // Hibernation-safe: the attachment survives the DO being evicted.
     server.serializeAttachment(member);
@@ -179,6 +198,15 @@ export class TimerRoom {
         s.remaining = this.phaseDuration(s.phase);
         await this.ctx.storage.deleteAlarm();
         this.addLog(`${me.name} switched to ${this.phaseLabel(s.phase)}`);
+        break;
+      }
+
+      case "name": {
+        const next = cleanName(msg.name);
+        if (!next || next === me.name) return;
+        const was = me.name;
+        ws.serializeAttachment({ ...me, name: next });
+        this.addLog(`${was} is now ${next}`);
         break;
       }
 

@@ -228,6 +228,8 @@ body.paused .time { color: var(--ink-soft); }
   font-size: 14px;
   color: var(--ink-soft);
   padding: 5px 0;
+  min-width: 0;
+  overflow-wrap: anywhere; /* a long unbroken name wraps, never widens the rail */
 }
 .who i {
   width: 7px; height: 7px;
@@ -502,6 +504,53 @@ body.paused .time { color: var(--ink-soft); }
   color: var(--ink-faint);
   text-align: center;
 }
+
+/* ═══════════ Name gate ═══════════ */
+
+.gate {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.36);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  z-index: 30;
+  animation: fade 0.15s ease;
+}
+.gate[hidden] { display: none; }
+
+.gate__panel {
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 26px;
+  animation: rise 0.18s ease;
+}
+.gate__title { margin: 0 0 8px; font-size: 19px; font-weight: 600; letter-spacing: -0.015em; }
+.gate__note { margin: 0 0 18px; font-size: 13.5px; line-height: 1.5; color: var(--ink-soft); }
+.gate__note b { font-family: var(--mono); font-weight: 500; font-size: 12.5px; color: var(--ink); }
+.gate__input { width: 100%; }
+.gate__actions { display: flex; gap: 8px; margin-top: 16px; }
+.gate__actions .btn { flex: 1; padding: 12px 14px; }
+
+.linkbtn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-faint);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 8px 0 0;
+  cursor: pointer;
+  text-align: left;
+}
+.linkbtn:hover { color: var(--accent); text-decoration: underline; }
+
+@keyframes fade { from { opacity: 0; } }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
 
 /* ═══════════ Toast ═══════════ */
 

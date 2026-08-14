@@ -123,20 +123,104 @@ function go(roomId) {
   route();
 }
 
+/* ---------------- display name ----------------
+   Asked once, then remembered across rooms and visits. Staying anonymous is a
+   real choice, so the "asked" flag is stored separately from the name itself —
+   otherwise an empty name would re-open the gate on every join. */
+
+const NAME_KEY = "pomo.name";
+const ASKED_KEY = "pomo.nameAsked";
+const MAX_NAME = 24;
+
+function cleanName(raw) {
+  return String(raw || "")
+    .replace(/[\u0000-\u001F\u007F<>]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_NAME);
+}
+
+function storedName() {
+  try {
+    return cleanName(localStorage.getItem(NAME_KEY));
+  } catch {
+    return "";
+  }
+}
+
+function rememberName(name) {
+  try {
+    localStorage.setItem(NAME_KEY, name);
+    localStorage.setItem(ASKED_KEY, "1");
+  } catch {
+    /* private browsing — the name still applies for this session */
+  }
+}
+
+function alreadyAsked() {
+  try {
+    return localStorage.getItem(ASKED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolve the name to join with. Returns "" for anonymous.
+ * @param {string} roomId shown in the dialog so it's clear where you're joining
+ * @param {boolean} force ask even if a name is already known (the rename path)
+ */
+function askName(roomId, force = false) {
+  const known = storedName();
+  if (!force && (known || alreadyAsked())) return Promise.resolve(known);
+
+  const gate = $("nameGate");
+  $("gateRoom").textContent = roomId;
+  $("gateTitle").textContent = force ? "Change your name" : "What should we call you?";
+  $("nameInput").value = known;
+  gate.hidden = false;
+  $("nameInput").focus();
+  $("nameInput").select();
+
+  return new Promise((resolve) => {
+    const finish = (name) => {
+      gate.hidden = true;
+      $("nameForm").onsubmit = null;
+      $("nameSkip").onclick = null;
+      rememberName(name);
+      resolve(name);
+    };
+    $("nameForm").onsubmit = (e) => {
+      e.preventDefault();
+      finish(cleanName($("nameInput").value));
+    };
+    $("nameSkip").onclick = () => finish("");
+  });
+}
+
 /* ---------------- Room ---------------- */
 
 let room = null;
 
-function showRoom(roomId) {
+async function showRoom(roomId) {
   $("landing").hidden = true;
   $("room").hidden = false;
   if (room) room.destroy();
-  room = new Room(roomId);
+
+  // Show the room behind the gate — dimmed, not yet connected — so it's clear
+  // which room you're about to join rather than naming yourself into a void.
+  $("roomCodeText").textContent = roomId;
+  const name = await askName(roomId);
+  // Bail out if the user navigated away while the gate was open.
+  if (!location.pathname.endsWith(`/r/${roomId}`)) return;
+
+  room = new Room(roomId, name);
 }
 
 class Room {
-  constructor(id) {
+  constructor(id, name = "") {
     this.id = id;
+    this.name = name;
     this.state = null;
     this.me = null;
     this.skew = 0; // serverNow - localNow
@@ -168,7 +252,10 @@ class Room {
 
   connect() {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${proto}//${location.host}/api/room/${encodeURIComponent(this.id)}`);
+    // The name rides along on the handshake so nobody sees a flash of "Guest 4"
+    // before it resolves — and it survives a reconnect for free.
+    const q = this.name ? `?name=${encodeURIComponent(this.name)}` : "";
+    const ws = new WebSocket(`${proto}//${location.host}/api/room/${encodeURIComponent(this.id)}${q}`);
     this.ws = ws;
 
     ws.onopen = () => {
@@ -331,6 +418,13 @@ class Room {
       } catch {
         prompt("Copy this link:", link);
       }
+    };
+
+    $("rename").onclick = async () => {
+      const name = await askName(this.id, true);
+      this.name = name; // so a reconnect keeps it
+      if (name) this.send({ type: "name", name });
+      else toast("Reload the room to go back to being a guest");
     };
 
     for (const id of ["setFocus", "setShort", "setLong", "setRounds", "setAuto", "setSound"]) {

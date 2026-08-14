@@ -14,8 +14,9 @@ entirely on Cloudflare Workers.
 1. Open **[the timer](https://pomodoro-timer.johnyip414.workers.dev/)** and hit
    *Create a room* — or type a name like `design-standup` to get a link your
    group can reuse every day.
-2. Send that link to everyone. They join instantly; there is nothing to sign up
-   for or install.
+2. Send that link to everyone. They pick a display name and join; there is
+   nothing to sign up for or install, and anyone who would rather not be named
+   can stay a guest.
 3. Anyone in the room can start, pause, skip, or change the focus and break
    lengths. Every screen stays in step, and a chime marks the end of each
    session.
@@ -46,7 +47,15 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
 ## Features
 
 - **Shared rooms** — `/r/quiet-ember-42`. Anyone with the link can join and
-  control the timer. Participants are anonymous (`Guest 1`, `Guest 2`, …).
+  control the timer.
+- **Display names.** You're asked for one the first time you join a room, then
+  it's remembered across rooms and visits; "Change your name" in the rail
+  updates it for everyone live. Staying anonymous is a real choice — skip and
+  you're `Guest 3`, and you won't be asked again. Names are normalised
+  server-side (control characters and angle brackets stripped, 24-character
+  cap) and escaped on render, since they're typed by strangers and displayed
+  in everyone's browser. A name chosen up front rides along on the WebSocket
+  handshake, so nobody sees a flash of `Guest 4` before it resolves.
 - **The same link every day.** A room keeps its settings, so a group can
   bookmark one address and reuse it indefinitely. Name your own
   (`/r/design-standup`) by typing it on the landing page — a room is created
@@ -137,7 +146,9 @@ public/app.js     WebSocket client, clock-offset correction, rendering, chime
 
 ## Protocol
 
-Client → server: `start`, `pause`, `reset`, `skip`, `phase`, `settings`, `ping`.
+Client → server: `start`, `pause`, `reset`, `skip`, `phase`, `settings`,
+`name`, `ping`. A display name may also be supplied as a `?name=` parameter on
+the WebSocket URL, which is how it is set at join time.
 Server → client: `welcome` (once, with your identity), `state` (on every
 change), `pong`. Every `state` carries the full room snapshot, so a client that
 misses a message self-heals on the next one.
