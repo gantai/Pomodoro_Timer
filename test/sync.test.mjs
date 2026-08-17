@@ -9,8 +9,13 @@ const URL_ = `ws://127.0.0.1:${PORT}/api/room/test-${Math.random().toString(36).
 const log = [];
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function client(tag) {
-  const ws = new WebSocket(URL_);
+/** A room of its own, for checks that depend on it being genuinely empty. */
+function freshRoomUrl() {
+  return `ws://127.0.0.1:${PORT}/api/room/test-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function client(tag, url = URL_) {
+  const ws = new WebSocket(url);
   const c = { tag, ws, last: null, msgs: [] };
   ws.onmessage = (e) => {
     const m = JSON.parse(e.data);
@@ -127,6 +132,28 @@ await wait(400);
 check("late joiner inherits running timer", c.last.running === true && c.last.endsAt > Date.now());
 check("late joiner inherits custom lengths", c.last.settings.focus === 1);
 
+// ---- a refresh must not lose the session ----
+// Its own room: "everyone left" only means something if nobody else is in it.
+const REFRESH_ROOM = freshRoomUrl();
+{
+  const d = await client("D", REFRESH_ROOM);
+  await wait(400);
+  d.ws.send(JSON.stringify({ type: "start" }));
+  await wait(300);
+  check("timer running before everyone leaves", d.last.running === true, String(d.last.running));
+  const endsAt = d.last.endsAt;
+
+  d.ws.close();
+  await wait(700); // well inside the 60s grace window
+  const back = await client("D2", REFRESH_ROOM);
+  await wait(500);
+  check("quick rejoin keeps the running timer", back.last.running === true, String(back.last.running));
+  check("quick rejoin keeps the same deadline", Math.abs(back.last.endsAt - endsAt) < 50, `${back.last.endsAt - endsAt}ms drift`);
+  check("quick rejoin is not announced as a reset", !JSON.stringify(back.last.log).includes("timer reset"));
+  back.ws.close();
+  await wait(300);
+}
+
 // alarm-driven phase rollover (1 minute is the shortest allowed phase)
 if (process.env.SLOW) {
   a.ws.send(JSON.stringify({ type: "settings", settings: { focus: 1, autoStart: true } }));
@@ -141,6 +168,33 @@ if (process.env.SLOW) {
   check("completed round counted", a.last.completed === doneBefore + 1);
   check("autoStart ran the next phase", a.last.running === true);
   check("chime broadcast on rollover", a.msgs.some((m) => m.chime === "focus"));
+
+  // ---- past the grace window, the next arrival gets a fresh timer ----
+  // Again in a room of its own, so closing E really does empty it.
+  const EMPTY_ROOM = freshRoomUrl();
+  const e = await client("E", EMPTY_ROOM);
+  await wait(400);
+  e.ws.send(JSON.stringify({ type: "settings", settings: { focus: 25, short: 5, long: 15, roundsBeforeLong: 4, autoStart: false } }));
+  await wait(250);
+  e.ws.send(JSON.stringify({ type: "phase", phase: "short" }));
+  await wait(250);
+  e.ws.send(JSON.stringify({ type: "start" }));
+  await wait(400);
+  check("set up mid-session state to abandon", e.last.running === true && e.last.phase === "short", `${e.last.phase} running=${e.last.running}`);
+
+  e.ws.close();
+  console.log("  …leaving the room empty for 65s");
+  await wait(65_000);
+
+  const f = await client("F", EMPTY_ROOM);
+  await wait(600);
+  check("empty room resets to a stopped timer", f.last.running === false, String(f.last.running));
+  check("empty room resets to focus", f.last.phase === "focus", f.last.phase);
+  check("empty room resets the round counter", f.last.round === 0, String(f.last.round));
+  check("full phase length is back on the clock", f.last.remaining === 25 * 60_000, String(f.last.remaining));
+  check("custom settings survive the reset", f.last.settings.focus === 25 && f.last.settings.roundsBeforeLong === 4);
+  check("reset is explained in the activity log", JSON.stringify(f.last.log).includes("timer reset"), f.last.log[0]?.text);
+  f.ws.close();
 }
 
 a.ws.close();

@@ -71,6 +71,13 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
   apply to everyone. Presets: Classic 25/5/15, Deep 50/10/30, Sprint 15/3/15.
 - **Full cycle** — focus → short break → focus → … → long break, with an
   optional auto-start for the next phase.
+- **An empty room resets itself.** When the last person leaves, the clock stops
+  advancing (no phases turning over, no chimes, to nobody), and the next person
+  to arrive gets a stopped timer at the top of a fresh focus phase — the room's
+  timer lengths are kept, only the run is discarded. The reset is deferred by a
+  60-second grace window, because a page refresh empties a room for a moment
+  too and a reload should not cost you the session you're in; come back inside
+  that window and the timer is exactly where you left it, deadline included.
 - **A chime ends every session**, work or rest, on every screen in the room at
   once. The two are different patterns — rising when focus ends, falling when a
   break does — so you can tell them apart without looking. The sound is

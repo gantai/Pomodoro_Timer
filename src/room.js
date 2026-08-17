@@ -24,9 +24,17 @@ const MAX_LOG = 12;
 /** Rooms untouched for this long are wiped — see RoomIndex. */
 const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
 
+/**
+ * How long a room may sit empty before the next arrival gets a clean timer.
+ * Not zero, because a page refresh empties the room for a moment too, and
+ * nobody wants a reload to throw away the focus session they're in.
+ */
+const EMPTY_GRACE = 60_000;
+
 function defaultState() {
   return {
     lastSeen: Date.now(),
+    emptyAt: null,
     phase: "focus",
     running: false,
     endsAt: null,
@@ -112,6 +120,7 @@ export class TimerRoom {
     this.roomId = request.headers.get("X-Room-Id") || this.roomId;
     this.state.lastSeen = Date.now();
     this.touchIndex();
+    await this.settleEmptyRoom();
 
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
@@ -235,12 +244,57 @@ export class TimerRoom {
     const me = ws.deserializeAttachment();
     if (me) this.addLog(`${me.name} left`);
     // The socket is still listed until this handler returns, so exclude it.
+    await this.markEmptyIfLast(ws);
     this.broadcast(ws);
     await this.save();
   }
 
   async webSocketError(ws) {
+    await this.markEmptyIfLast(ws);
     this.broadcast(ws);
+    await this.save();
+  }
+
+  /**
+   * The last person just left. Stop the clock from advancing phases (and
+   * chiming) to an empty room, and note when it emptied — the decision about
+   * whether to reset is made lazily, when somebody next arrives, because
+   * nothing needs to happen in between.
+   */
+  async markEmptyIfLast(leaving) {
+    if (this.members(leaving).length > 0) return;
+    this.state.emptyAt = Date.now();
+    await this.ctx.storage.deleteAlarm();
+  }
+
+  /**
+   * Someone is arriving. If the room sat empty longer than the grace window,
+   * hand them a fresh timer rather than whatever the last group left running.
+   * Inside the window — a refresh, a dropped connection — pick up where it
+   * left off, alarm and all.
+   */
+  async settleEmptyRoom() {
+    const s = this.state;
+    if (s.emptyAt === null) return;
+
+    const idle = Date.now() - s.emptyAt;
+    const overran = s.running && s.endsAt !== null && s.endsAt <= Date.now();
+    s.emptyAt = null;
+
+    if (idle <= EMPTY_GRACE && !overran) {
+      // Back within the grace window: resume. `endsAt` is absolute, so the
+      // clock reads correctly without any adjustment.
+      if (s.running && s.endsAt !== null) await this.ctx.storage.setAlarm(s.endsAt);
+      return;
+    }
+
+    s.phase = "focus";
+    s.round = 0;
+    s.running = false;
+    s.endsAt = null;
+    s.remaining = this.phaseDuration("focus");
+    await this.ctx.storage.deleteAlarm();
+    this.addLog("Everyone left — timer reset and ready to start");
   }
 
   async alarm() {
