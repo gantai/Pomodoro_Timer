@@ -3,6 +3,7 @@
    offset between this device's clock and the room's. */
 
 import { PixelRoom } from "./pixel/scene.js";
+import { ICONS, ICON_IDS, iconDataURL } from "./pixel/art.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -132,7 +133,25 @@ function go(roomId) {
 
 const NAME_KEY = "pomo.name";
 const ASKED_KEY = "pomo.nameAsked";
+const ICON_KEY = "pomo.icon";
 const MAX_NAME = 24;
+
+function storedIcon() {
+  try {
+    const v = localStorage.getItem(ICON_KEY);
+    return ICON_IDS.includes(v) ? v : "person";
+  } catch {
+    return "person";
+  }
+}
+
+function rememberIcon(icon) {
+  try {
+    localStorage.setItem(ICON_KEY, icon);
+  } catch {
+    /* fine — it just won't survive a reload */
+  }
+}
 
 function cleanName(raw) {
   return String(raw || "")
@@ -188,18 +207,44 @@ function setRoomHiddenPref(hidden) {
 }
 
 /**
- * Resolve the name to join with. Returns "" for anonymous.
+ * Resolve the name and icon to join with. Resolves to {name, icon}; an empty
+ * name means anonymous.
  * @param {string} roomId shown in the dialog so it's clear where you're joining
  * @param {boolean} force ask even if a name is already known (the rename path)
  */
-function askName(roomId, force = false) {
+function askIdentity(roomId, force = false) {
   const known = storedName();
-  if (!force && (known || alreadyAsked())) return Promise.resolve(known);
+  let icon = storedIcon();
+  if (!force && (known || alreadyAsked())) return Promise.resolve({ name: known, icon });
 
   const gate = $("nameGate");
   $("gateRoom").textContent = roomId;
-  $("gateTitle").textContent = force ? "Change your name" : "What should we call you?";
+  $("gateTitle").textContent = force ? "Change your name or icon" : "Who are you?";
   $("nameInput").value = known;
+
+  // Build the picker once; repaint the selection each time it opens.
+  const picker = $("iconPicker");
+  if (!picker.childElementCount) {
+    picker.innerHTML = ICONS.map(
+      (i) =>
+        `<button type="button" class="icon" role="radio" data-icon="${i.id}" aria-checked="false" title="${i.label}">
+           <img src="${iconDataURL(i.id)}" alt="" /><span>${i.label}</span>
+         </button>`,
+    ).join("");
+  }
+  const mark = () => {
+    for (const b of picker.children) {
+      b.setAttribute("aria-checked", String(b.dataset.icon === icon));
+    }
+  };
+  for (const b of picker.children) {
+    b.onclick = () => {
+      icon = b.dataset.icon;
+      mark();
+    };
+  }
+  mark();
+
   gate.hidden = false;
   $("nameInput").focus();
   $("nameInput").select();
@@ -210,7 +255,8 @@ function askName(roomId, force = false) {
       $("nameForm").onsubmit = null;
       $("nameSkip").onclick = null;
       rememberName(name);
-      resolve(name);
+      rememberIcon(icon);
+      resolve({ name, icon });
     };
     $("nameForm").onsubmit = (e) => {
       e.preventDefault();
@@ -232,17 +278,18 @@ async function showRoom(roomId) {
   // Show the room behind the gate — dimmed, not yet connected — so it's clear
   // which room you're about to join rather than naming yourself into a void.
   $("roomCodeText").textContent = roomId;
-  const name = await askName(roomId);
+  const { name, icon } = await askIdentity(roomId);
   // Bail out if the user navigated away while the gate was open.
   if (!location.pathname.endsWith(`/r/${roomId}`)) return;
 
-  room = new Room(roomId, name);
+  room = new Room(roomId, name, icon);
 }
 
 class Room {
-  constructor(id, name = "") {
+  constructor(id, name = "", icon = "person") {
     this.id = id;
     this.name = name;
+    this.icon = icon;
     this.state = null;
     this.me = null;
     this.skew = 0; // serverNow - localNow
@@ -324,8 +371,11 @@ class Room {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     // The name rides along on the handshake so nobody sees a flash of "Guest 4"
     // before it resolves — and it survives a reconnect for free.
-    const q = this.name ? `?name=${encodeURIComponent(this.name)}` : "";
-    const ws = new WebSocket(`${proto}//${location.host}/api/room/${encodeURIComponent(this.id)}${q}`);
+    const q = new URLSearchParams();
+    if (this.name) q.set("name", this.name);
+    if (this.icon && this.icon !== "person") q.set("icon", this.icon);
+    const qs = q.toString() ? `?${q}` : "";
+    const ws = new WebSocket(`${proto}//${location.host}/api/room/${encodeURIComponent(this.id)}${qs}`);
     this.ws = ws;
 
     ws.onopen = () => {
@@ -452,7 +502,7 @@ class Room {
     $("members").innerHTML = s.members
       .map((m) => {
         const mine = this.me && m.id === this.me.id;
-        return `<div class="who${mine ? " who--me" : ""}"><i></i>${esc(m.name)}${mine ? " <span>you</span>" : ""}</div>`;
+        return `<div class="who${mine ? " who--me" : ""}"><img src="${iconDataURL(m.icon || "person", m.id, 2)}" alt="" />${esc(m.name)}${mine ? " <span>you</span>" : ""}</div>`;
       })
       .join("");
 
@@ -522,10 +572,12 @@ class Room {
     };
 
     $("rename").onclick = async () => {
-      const name = await askName(this.id, true);
-      this.name = name; // so a reconnect keeps it
+      const { name, icon } = await askIdentity(this.id, true);
+      this.name = name; // so a reconnect keeps them
+      this.icon = icon;
       if (name) this.send({ type: "name", name });
-      else toast("Reload the room to go back to being a guest");
+      this.send({ type: "icon", icon });
+      if (!name) toast("Reload the room to go back to being a guest");
     };
 
     $("toggleRoom").onclick = () => {

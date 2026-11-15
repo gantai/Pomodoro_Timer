@@ -282,6 +282,167 @@ export function paletteFor(id) {
   };
 }
 
+/* ── animal avatars ────────────────────────────────────────────────────────
+   One pose each, facing the viewer. People get three facings because a human
+   walking away looks wrong otherwise; a cat that always faces you reads as
+   charm rather than error, which buys back two thirds of the art.
+
+   A = body, B = belly, C = accent, e = eye, W = white. A/B/C come from the
+   species tint, so the same blit path draws all of them. */
+
+const A_CAT = [
+  "..0........0..",
+  ".0A0......0A0.",
+  ".0ACA0..0ACA0.",
+  ".0AAAA00AAAA0.",
+  "0AAAAAAAAAAAA0",
+  "0AAAAAAAAAAAA0",
+  "0AeAAAAAAAAeA0",
+  "0AAAAACCAAAAA0",
+  "0AAAAAAAAAAAA0",
+  ".0AAAAAAAAAA0.",
+  ".0ABBBBBBBBA0.",
+  ".0AABBBBBBAA0.",
+  "..0AA0..0AA0..",
+  "...00....00...",
+];
+
+const A_DOG = [
+  "...0....0.....",
+  "..0CC0.0CC0...",
+  ".0CCCC0CCCC0..",
+  ".0CCCAAAACCC0.",
+  "0CCAAAAAAAACC0",
+  "0CCAAAAAAAACC0",
+  "0CCAeAAAAeACC0",
+  "0CCAAACCAAACC0",
+  "0CCAAAAAAAACC0",
+  ".0CAAAAAAAAC0.",
+  ".0ABBBBBBBBA0.",
+  ".0AABBBBBBAA0.",
+  "..0AA0..0AA0..",
+  "...00....00...",
+];
+
+const A_FOX = [
+  "..0........0..",
+  ".0C0......0C0.",
+  ".0CC0....0CC0.",
+  ".0CAA0..0AAC0.",
+  "0AAAAAAAAAAAA0",
+  "0AAAAAAAAAAAA0",
+  "0BeAAAAAAAAeB0",
+  "0BAAAACCAAAAB0",
+  "0BBAAAAAAAABB0",
+  ".0BBBBBBBBBB0.",
+  ".0ABBBBBBBBA0.",
+  ".0AABBBBBBAA0.",
+  "..0AA0..0AA0..",
+  "...00....00...",
+];
+
+const A_BUNNY = [
+  "...0CC0..0CC0.",
+  "...0CC0..0CC0.",
+  "...0AA0..0AA0.",
+  "..0AAAAAAAAA0.",
+  "0AAAAAAAAAAAA0",
+  "0AAAAAAAAAAAA0",
+  "0AeAAAAAAAAeA0",
+  "0AAAAACCAAAAA0",
+  "0AAAAAAAAAAAA0",
+  ".0AAAAAAAAAA0.",
+  ".0ABBBBBBBBA0.",
+  ".0AABBBBBBAA0.",
+  "..0AA0..0AA0..",
+  "...00....00...",
+];
+
+const A_BEAR = [
+  ".0CC0....0CC0.",
+  "0CAAC0..0CAAC0",
+  ".0AAAAAAAAAA0.",
+  "0AAAAAAAAAAAA0",
+  "0AAAAAAAAAAAA0",
+  "0AAAAAAAAAAAA0",
+  "0AeAAAAAAAAeA0",
+  "0AAAABBBBAAAA0",
+  "0AAAABCCBAAAA0",
+  ".0AAAABBAAAA0.",
+  ".0ABBBBBBBBA0.",
+  ".0AABBBBBBAA0.",
+  "..0AA0..0AA0..",
+  "...00....00...",
+];
+
+const A_FROG = [
+  "..00......00..",
+  ".0AA0....0AA0.",
+  ".0AeA0..0AeA0.",
+  ".0AAAA00AAAA0.",
+  "0AAAAAAAAAAAA0",
+  "0AAAAAAAAAAAA0",
+  "0AAAAAAAAAAAA0",
+  "0ABBBBBBBBBBA0",
+  "0A0000000000A0",
+  ".0AAAAAAAAAA0.",
+  ".0ABBBBBBBBA0.",
+  ".0AABBBBBBAA0.",
+  "..0AA0..0AA0..",
+  "...00....00...",
+];
+
+const A_OWL = [
+  ".0C0......0C0.",
+  ".0CC0....0CC0.",
+  "..0AAAAAAAA0..",
+  ".0AAAAAAAAAA0.",
+  "0AAWWAAAAWWAA0",
+  "0AAWeAAAAeWAA0",
+  "0AAWWAAAAWWAA0",
+  "0AAAAACCAAAAA0",
+  "0AABBBBBBBBAA0",
+  ".0ABBBBBBBBA0.",
+  ".0ABBBBBBBBA0.",
+  ".0AABBBBBBAA0.",
+  "..0CC0..0CC0..",
+  "...00....00...",
+];
+
+const A_PENGUIN = [
+  "....000000....",
+  "..00AAAAAA00..",
+  ".0AAAAAAAAAA0.",
+  "0AAAeAAAAeAAA0",
+  "0AAAAACCAAAAA0",
+  "0AAAAACCAAAAA0",
+  "0AABBBBBBBBAA0",
+  "0ABBBBBBBBBBA0",
+  "0ABBBBBBBBBBA0",
+  "0ABBBBBBBBBBA0",
+  ".0ABBBBBBBBA0.",
+  ".0AABBBBBBAA0.",
+  "..0CC0..0CC0..",
+  "...00....00...",
+];
+
+/** The roster. `person` keeps the original human, coloured per member. */
+export const ICONS = [
+  { id: "person", label: "Person", sprite: null, tint: null },
+  { id: "cat", label: "Cat", sprite: A_CAT, tint: { A: "#6e6e78", B: "#d8d2c8", C: "#e0929a" } },
+  { id: "dog", label: "Dog", sprite: A_DOG, tint: { A: "#c9914f", B: "#efe2cc", C: "#8a5a33" } },
+  { id: "fox", label: "Fox", sprite: A_FOX, tint: { A: "#d2763a", B: "#f2eadb", C: "#b8552a" } },
+  { id: "bunny", label: "Bunny", sprite: A_BUNNY, tint: { A: "#e4ded4", B: "#fbf8f2", C: "#e0a0a8" } },
+  { id: "bear", label: "Bear", sprite: A_BEAR, tint: { A: "#8a5a3a", B: "#c9a37a", C: "#6b452c" } },
+  { id: "frog", label: "Frog", sprite: A_FROG, tint: { A: "#5aa05a", B: "#cfe6b8", C: "#3f7a46" } },
+  { id: "owl", label: "Owl", sprite: A_OWL, tint: { A: "#a6845c", B: "#e4d3b4", C: "#7a5f40" } },
+  { id: "penguin", label: "Penguin", sprite: A_PENGUIN, tint: { A: "#343a48", B: "#f1ead9", C: "#e0a23a" } },
+];
+
+export const ICON_IDS = ICONS.map((i) => i.id);
+const BY_ID = new Map(ICONS.map((i) => [i.id, i]));
+export const iconById = (id) => BY_ID.get(id) || BY_ID.get("person");
+
 /* ── drawing ───────────────────────────────────────────────────────────── */
 
 /**
@@ -305,4 +466,32 @@ export function blit(ctx, sprite, x, y, tint = null, flip = false) {
 
 export function spriteSize(sprite) {
   return { w: sprite[0].length, h: sprite.length };
+}
+
+/**
+ * Render a sprite to a data URL, for the icon picker and the rail list.
+ * Memoised: the same handful of icons are asked for on every repaint.
+ */
+const urlCache = new Map();
+export function iconDataURL(iconId, memberId = "", scale = 3) {
+  const key = `${iconId}|${memberId}|${scale}`;
+  const hit = urlCache.get(key);
+  if (hit) return hit;
+
+  const icon = iconById(iconId);
+  const sprite = icon.sprite || FACE_DOWN;
+  const tint = icon.tint || paletteFor(memberId || iconId);
+  const { w, h } = spriteSize(sprite);
+
+  const c = document.createElement("canvas");
+  c.width = w * scale;
+  c.height = h * scale;
+  const ctx = c.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.scale(scale, scale);
+  blit(ctx, sprite, 0, 0, tint);
+
+  const url = c.toDataURL();
+  urlCache.set(key, url);
+  return url;
 }

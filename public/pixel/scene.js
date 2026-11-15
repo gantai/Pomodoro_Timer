@@ -8,7 +8,7 @@
 
 import {
   PAL, DESK, SHELF, PLANT, CHAIR, CAT, WINDOW, CLOCK,
-  FACINGS, FLIP_FACING, walkCycle, paletteFor, blit, spriteSize,
+  FACINGS, FLIP_FACING, walkCycle, paletteFor, blit, spriteSize, iconById,
 } from "./art.js";
 
 export const TILE = 16;
@@ -304,6 +304,10 @@ export class PixelRoom {
       const existing = this.people.get(m.id);
       if (existing) {
         existing.name = m.name;
+        if (existing.icon !== m.icon) {
+          existing.icon = m.icon;
+          existing.frames = null; // force the walk cycle to rebuild
+        }
         return;
       }
       const seat = seatFor(i);
@@ -313,6 +317,7 @@ export class PixelRoom {
         moving: false,
         step: 0,
         name: m.name,
+        icon: m.icon,
         pal: paletteFor(m.id),
         tx: seat.x,
         ty: seat.y,
@@ -452,7 +457,13 @@ export class PixelRoom {
   }
 
   drawPerson(ctx, p) {
-    const base = FACINGS[p.d];
+    // Animals have one pose and face the viewer; the human has three facings.
+    const icon = iconById(p.icon);
+    const animal = Boolean(icon.sprite);
+    const base = animal ? icon.sprite : FACINGS[p.d];
+    const tint = animal ? icon.tint : p.pal;
+    const flip = animal ? p.d === 1 : p.d === FLIP_FACING;
+
     if (!p.frames || p.frames.base !== base) {
       p.frames = { base, cycle: walkCycle(base) };
     }
@@ -465,7 +476,7 @@ export class PixelRoom {
     ctx.fillStyle = "rgba(0,0,0,0.18)";
     ctx.fillRect(x + 2, p.y - 2, w - 4, 2);
 
-    blit(ctx, frame, x, y, p.pal, p.d === FLIP_FACING);
+    blit(ctx, frame, x, y, tint, flip);
   }
 
   /** Phase colour as room light: warm and low on focus, bright on a break. */

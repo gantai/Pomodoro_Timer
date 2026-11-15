@@ -49,6 +49,10 @@ function defaultState() {
 
 const MAX_NAME = 24;
 
+/** Avatars people may pick. Kept in step with public/pixel/art.js. */
+const ICON_IDS = ["person", "cat", "dog", "fox", "bunny", "bear", "frog", "owl", "penguin"];
+const cleanIcon = (raw) => (ICON_IDS.includes(raw) ? raw : null);
+
 /** Logical pixel size of the room; positions are clamped to it. */
 const ROOM_W = 320;
 const ROOM_H = 192;
@@ -135,6 +139,7 @@ export class TimerRoom {
     const member = {
       id: crypto.randomUUID().slice(0, 8),
       name: cleanName(url.searchParams.get("name")) || `Guest ${this.state.guestSeq}`,
+      icon: cleanIcon(url.searchParams.get("icon")) || "person",
     };
     // Hibernation-safe: the attachment survives the DO being evicted.
     server.serializeAttachment(member);
@@ -237,6 +242,13 @@ export class TimerRoom {
         const was = me.name;
         ws.serializeAttachment({ ...me, name: next });
         this.addLog(`${was} is now ${next}`);
+        break;
+      }
+
+      case "icon": {
+        const next = cleanIcon(msg.icon);
+        if (!next || next === me.icon) return;
+        ws.serializeAttachment({ ...me, icon: next });
         break;
       }
 

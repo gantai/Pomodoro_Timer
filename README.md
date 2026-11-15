@@ -48,6 +48,13 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
 
 - **Shared rooms** — `/r/quiet-ember-42`. Anyone with the link can join and
   control the timer.
+- **Pick an icon.** Nine avatars — a person plus cat, dog, fox, bunny, bear,
+  frog, owl and penguin — chosen in the same dialog as your name and changed
+  any time from the rail. Your choice is remembered across rooms, travels on
+  the WebSocket handshake, and is validated against the roster server-side, so
+  a hand-made request cannot inject one. Animals have a single pose facing the
+  viewer; the person keeps three facings, because a human walking away looks
+  wrong where a cat that always faces you just looks like a cat.
 - **Display names.** You're asked for one the first time you join a room, then
   it's remembered across rooms and visits; "Change your name" in the rail
   updates it for everyone live. Staying anonymous is a real choice — skip and
@@ -164,8 +171,9 @@ public/app.js     WebSocket client, clock-offset correction, rendering, chime
 ## Protocol
 
 Client → server: `start`, `pause`, `reset`, `skip`, `phase`, `settings`,
-`name`, `move`, `ping`. A display name may also be supplied as a `?name=`
-parameter on the WebSocket URL, which is how it is set at join time.
+`name`, `icon`, `move`, `ping`. A display name and icon may also be supplied
+as `?name=` and `?icon=` on the WebSocket URL, which is how they are set at
+join time.
 
 `move` is deliberately separate from everything else: it is relayed to the
 other sockets as `pos` and never written to storage or mixed into the timer

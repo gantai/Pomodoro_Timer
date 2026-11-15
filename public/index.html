@@ -130,7 +130,7 @@
           <section class="panel">
             <h2 class="panel__title">In this room <span id="presenceText" class="count">—</span></h2>
             <div id="members" class="members"></div>
-            <button id="rename" class="linkbtn" type="button">Change your name</button>
+            <button id="rename" class="linkbtn" type="button">Change your name or icon</button>
             <button id="toggleRoom" class="linkbtn" type="button">Hide the room</button>
           </section>
 
@@ -180,8 +180,10 @@
     <div id="nameGate" class="gate" hidden>
       <form class="gate__panel" id="nameForm" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
         <h2 id="gateTitle" class="gate__title">What should we call you?</h2>
-        <p class="gate__note">Everyone in <b id="gateRoom">this room</b> sees this name next to what you do.</p>
+        <p class="gate__note">Everyone in <b id="gateRoom">this room</b> sees this name and icon next to what you do.</p>
         <input id="nameInput" class="input gate__input" type="text" maxlength="24" placeholder="Your name" autocomplete="nickname" spellcheck="false" />
+        <p class="gate__label">Pick your icon</p>
+        <div class="icons" id="iconPicker" role="radiogroup" aria-label="Choose an icon"></div>
         <div class="gate__actions">
           <button class="btn btn--primary btn--lg" type="submit">Join the room</button>
           <button class="btn btn--lg" type="button" id="nameSkip">Stay anonymous</button>
