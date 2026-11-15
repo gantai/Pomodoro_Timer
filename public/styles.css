@@ -53,6 +53,16 @@ body {
 }
 
 svg { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+kbd {
+  font: inherit;
+  font-size: 11px;
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0 4px;
+  background: var(--surface);
+}
 .view { min-height: 100%; display: flex; flex-direction: column; }
 .view[hidden] { display: none; }
 
@@ -505,6 +515,83 @@ body.paused .time { color: var(--ink-soft); }
   text-align: center;
 }
 
+/* ═══════════ Pixel room ═══════════ */
+
+.scene {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+.scene[hidden] { display: none; }
+
+.scene__frame {
+  position: relative;
+  line-height: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 18px 44px -24px rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--line);
+}
+
+#pixelRoom {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  touch-action: manipulation;
+  cursor: pointer;
+  background: #2a2018;
+}
+
+/* Name tags ride above the canvas as real text — crisper and more legible
+   than anything we could draw into a 320px-wide buffer. */
+.tags {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.tag {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 10px;
+  line-height: 1.35;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(16, 13, 10, 0.72);
+  color: #f3ede1;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tag--me { background: var(--accent); color: #fff; }
+
+.hud {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  line-height: 1;
+  padding: 8px 20px 10px;
+  border-radius: 10px;
+  background: rgba(16, 13, 10, 0.5);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+}
+.hud .time {
+  font-size: clamp(34px, 5.5vw, 56px);
+  color: #fdfaf3;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+}
+body.paused .hud .time { color: #cfc6b6; }
+.hud .meta { margin-top: 6px; font-size: 12px; color: #d8cfc0; }
+
+.hint--move { margin-top: 12px; }
+
+.plainclock { text-align: center; padding: 26px 0 4px; }
+.plainclock[hidden] { display: none; }
+
 /* ═══════════ Name gate ═══════════ */
 
 .gate {
@@ -538,12 +625,13 @@ body.paused .time { color: var(--ink-soft); }
 
 .linkbtn {
   appearance: none;
+  display: block;
   border: 0;
   background: transparent;
   color: var(--ink-faint);
   font: inherit;
   font-size: 12.5px;
-  padding: 8px 0 0;
+  padding: 7px 0 0;
   cursor: pointer;
   text-align: left;
 }

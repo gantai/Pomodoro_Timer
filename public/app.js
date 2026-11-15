@@ -2,6 +2,8 @@
    The server owns the clock. We only render `endsAt - now`, corrected for the
    offset between this device's clock and the room's. */
 
+import { PixelRoom } from "./pixel/scene.js";
+
 const $ = (id) => document.getElementById(id);
 
 const ADJECTIVES = [
@@ -165,6 +167,26 @@ function alreadyAsked() {
   }
 }
 
+/* Some people want the room; some want a clock and nothing else. Remembered
+   per browser, like the name. */
+const ROOM_PREF_KEY = "pomo.hideRoom";
+
+function roomHiddenPref() {
+  try {
+    return localStorage.getItem(ROOM_PREF_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function setRoomHiddenPref(hidden) {
+  try {
+    localStorage.setItem(ROOM_PREF_KEY, hidden ? "1" : "0");
+  } catch {
+    /* fine — the choice just won't survive a reload */
+  }
+}
+
 /**
  * Resolve the name to join with. Returns "" for anonymous.
  * @param {string} roomId shown in the dialog so it's clear where you're joining
@@ -232,6 +254,7 @@ class Room {
 
     $("roomCodeText").textContent = id;
     rememberRoom(id);
+    this.setupScene();
     this.bind();
     this.connect();
     this.ticker = setInterval(() => this.paint(), 200);
@@ -242,11 +265,58 @@ class Room {
     this.dead = true;
     clearInterval(this.ticker);
     clearInterval(this.pinger);
+    clearInterval(this.tagTimer);
+    this.scene?.destroy();
+    this.scene = null;
     if (this.ws) {
       this.ws.onclose = null;
       this.ws.close();
     }
   }
+
+  /* --- the pixel room --- */
+
+  setupScene() {
+    this.roomHidden = roomHiddenPref();
+    this.scene = new PixelRoom($("pixelRoom"), (pos) => {
+      this.send({ type: "move", ...pos });
+    });
+    this.applyRoomVisibility();
+    // Repaint the name tags on the same cadence as the clock; they only need
+    // to track walking, not every animation frame.
+    this.tagTimer = setInterval(() => this.paintTags(), 80);
+  }
+
+  applyRoomVisibility() {
+    const hidden = this.roomHidden;
+    $("scene").hidden = hidden;
+    $("plainClock").hidden = !hidden;
+    $("toggleRoom").textContent = hidden ? "Show the room" : "Hide the room";
+    if (hidden) {
+      this.scene?.destroy();
+    } else {
+      this.scene?.resize();
+      this.scene?.start();
+    }
+  }
+
+  paintTags() {
+    if (this.roomHidden || !this.scene) return;
+    const tags = this.scene.labelPositions();
+    const host = $("tags");
+    if (host.childElementCount !== tags.length) {
+      host.innerHTML = tags.map(() => '<span class="tag"></span>').join("");
+    }
+    const nodes = host.children;
+    tags.forEach((t, i) => {
+      const el = nodes[i];
+      if (el.textContent !== t.name) el.textContent = t.name;
+      el.className = `tag${t.me ? " tag--me" : ""}`;
+      el.style.left = `${t.left}px`;
+      el.style.top = `${t.top}px`;
+    });
+  }
+
 
   /* --- transport --- */
 
@@ -272,8 +342,14 @@ class Room {
         this.skew = msg.serverTime + rtt / 2 - Date.now();
         return;
       }
+      if (msg.type === "pos") {
+        this.scene?.setPosition(msg.id, msg.x, msg.y, msg.d, msg.moving);
+        return;
+      }
       if (msg.type === "welcome") {
         this.me = msg.you;
+        this.scene?.setMe(msg.you.id);
+        this.knownIds = new Set();
         if (!this.greeted) {
           this.greeted = true;
           if (msg.members.length === 1) toast("You're first in — copy the invite link to bring your group");
@@ -282,6 +358,9 @@ class Room {
       if (msg.type === "welcome" || msg.type === "state") {
         if (!this.skew) this.skew = msg.serverTime - Date.now();
         this.apply(msg);
+        if (msg.positions) {
+          for (const p of msg.positions) this.scene?.setPosition(p.id, p.x, p.y, p.d, false);
+        }
       }
     };
 
@@ -326,6 +405,25 @@ class Room {
 
     if (!prev || prev.phase !== msg.phase) document.body.dataset.phase = msg.phase;
     if (!this.settingsDirty) this.fillSettings(msg.settings);
+
+    if (this.scene) {
+      this.scene.syncMembers(msg.members);
+      this.scene.setPhase(msg.phase, msg.running);
+      // Somebody new arrived: tell them where we are. The server keeps
+      // positions in memory only, so this is also how a room that hibernated
+      // and forgot everyone fills itself back in.
+      const ids = new Set(msg.members.map((m) => m.id));
+      if (this.knownIds) {
+        for (const id of ids) {
+          if (!this.knownIds.has(id) && id !== this.me?.id) {
+            const mine = this.scene.myPosition();
+            if (mine) setTimeout(() => this.send({ type: "move", ...mine }), 150 + Math.random() * 250);
+            break;
+          }
+        }
+      }
+      this.knownIds = ids;
+    }
 
     this.paintStatic();
     this.paint();
@@ -376,15 +474,18 @@ class Room {
     const ms = this.remainingMs();
     const label = fmt(ms);
     $("time").textContent = label;
+    $("timePlain").textContent = label;
 
     const total = s.settings[s.phase] * 60_000;
     $("progress").style.width = `${Math.min(100, Math.max(0, (1 - ms / total) * 100))}%`;
 
     const roundInCycle = (s.round % s.settings.roundsBeforeLong) + (s.phase === "focus" ? 1 : 0);
     const shown = Math.min(s.settings.roundsBeforeLong, Math.max(1, roundInCycle));
-    $("meta").textContent =
+    const metaText =
       `${PHASE_NAME[s.phase]} · round ${shown} of ${s.settings.roundsBeforeLong}` +
       (s.completed ? ` · ${s.completed} focus session${s.completed === 1 ? "" : "s"} done` : "");
+    $("meta").textContent = metaText;
+    $("metaPlain").textContent = metaText;
 
     document.title = `${label} · ${PHASE_NAME[s.phase]}${s.running ? "" : " (paused)"}`;
 
@@ -425,6 +526,12 @@ class Room {
       this.name = name; // so a reconnect keeps it
       if (name) this.send({ type: "name", name });
       else toast("Reload the room to go back to being a guest");
+    };
+
+    $("toggleRoom").onclick = () => {
+      this.roomHidden = !this.roomHidden;
+      setRoomHiddenPref(this.roomHidden);
+      this.applyRoomVisibility();
     };
 
     for (const id of ["setFocus", "setShort", "setLong", "setRounds", "setAuto", "setSound"]) {

@@ -91,15 +91,29 @@
 
       <div class="app">
         <!-- Stage -->
-        <main class="stage">
+        <main class="stage" id="stage">
           <nav class="phases" id="phases" aria-label="Timer phase">
             <button class="phase" data-phase="focus">Focus</button>
             <button class="phase" data-phase="short">Short break</button>
             <button class="phase" data-phase="long">Long break</button>
           </nav>
 
-          <div id="time" class="time">--:--</div>
-          <div id="meta" class="meta">—</div>
+          <div class="scene" id="scene">
+            <div class="scene__frame" id="sceneFrame">
+              <canvas id="pixelRoom" width="320" height="192" aria-label="The group's pixel room"></canvas>
+              <div class="tags" id="tags" aria-hidden="true"></div>
+              <div class="hud">
+                <div id="time" class="time">--:--</div>
+                <div id="meta" class="meta">—</div>
+              </div>
+            </div>
+            <p class="hint hint--move" id="moveHint">Arrow keys or <kbd>WASD</kbd> to walk · or click where you want to go</p>
+          </div>
+
+          <div class="plainclock" id="plainClock" hidden>
+            <div id="timePlain" class="time">--:--</div>
+            <div id="metaPlain" class="meta">—</div>
+          </div>
 
           <div class="track"><div id="progress" class="track__fill"></div></div>
 
@@ -117,6 +131,7 @@
             <h2 class="panel__title">In this room <span id="presenceText" class="count">—</span></h2>
             <div id="members" class="members"></div>
             <button id="rename" class="linkbtn" type="button">Change your name</button>
+            <button id="toggleRoom" class="linkbtn" type="button">Hide the room</button>
           </section>
 
           <section class="panel">

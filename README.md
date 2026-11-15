@@ -89,6 +89,14 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
 - **Live presence and activity** — who's here, and who last started or paused.
 - **Survives everything** — refresh, reconnect, and a late joiner picks up the
   timer mid-flight. Room state is persisted in the Durable Object.
+- **A room you can walk around.** The stage is a top-down pixel study — desks,
+  bookshelves, plants, a rug, a cat — with the countdown as a HUD over it.
+  Everyone has a character labelled with their display name and coloured
+  deterministically from their id, so you look the same to everyone. Walk with
+  the arrow keys or WASD, or click where you want to go; furniture blocks the
+  way. Phase colour becomes the room's light: warm lamps on focus, cooler on a
+  break. **Hide the room** in the rail swaps back to a plain clock, remembered
+  per browser.
 - Light and dark, phase and remaining time shown in the tab title. The timer is
   driven by the on-screen controls only — there is deliberately no keyboard
   shortcut, so a stray keypress cannot reset a room everyone is working in.
@@ -146,6 +154,8 @@ To serve it from your own domain, add a route in `wrangler.jsonc`:
 src/index.js      Worker: routes /api/room/<id> to the room, everything else to assets
 src/room.js       TimerRoom Durable Object — the shared clock
 src/roomIndex.js  RoomIndex Durable Object — last-use record and the 30-day sweep
+public/pixel/art.js    palette, sprites-as-text, per-person colours
+public/pixel/scene.js  layout, collision, movement, renderer
 public/index.html Landing page + room app shell
 public/styles.css Layout, theming, phase accent
 public/app.js     WebSocket client, clock-offset correction, rendering, chime
@@ -154,8 +164,25 @@ public/app.js     WebSocket client, clock-offset correction, rendering, chime
 ## Protocol
 
 Client → server: `start`, `pause`, `reset`, `skip`, `phase`, `settings`,
-`name`, `ping`. A display name may also be supplied as a `?name=` parameter on
-the WebSocket URL, which is how it is set at join time.
+`name`, `move`, `ping`. A display name may also be supplied as a `?name=`
+parameter on the WebSocket URL, which is how it is set at join time.
+
+`move` is deliberately separate from everything else: it is relayed to the
+other sockets as `pos` and never written to storage or mixed into the timer
+broadcast. At ten updates a second per walker, doing otherwise would mean a
+storage write and a full state broadcast per footstep. Positions live in the
+object's memory only; if it hibernates and forgets them, the next arrival
+prompts everyone to re-send theirs once.
+
+## Drawing the room without an asset pack
+
+Every sprite is a grid of characters mapped through a shared palette, blitted
+a pixel at a time onto a canvas with a fixed 320×192 logical buffer scaled by
+a whole number. Text sprites are diffable, weigh almost nothing, and recolour
+for free — which is how one character drawing becomes everybody in the room.
+Only three poses are hand-drawn (facing the viewer, away, and side); the walk
+cycles are derived by lifting one foot and then the other, which is the
+difference between about 45 lines of art and about 400.
 Server → client: `welcome` (once, with your identity), `state` (on every
 change), `pong`. Every `state` carries the full room snapshot, so a client that
 misses a message self-heals on the next one.

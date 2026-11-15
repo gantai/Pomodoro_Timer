@@ -49,6 +49,10 @@ function defaultState() {
 
 const MAX_NAME = 24;
 
+/** Logical pixel size of the room; positions are clamped to it. */
+const ROOM_W = 320;
+const ROOM_H = 192;
+
 /**
  * Display names are typed by strangers and rendered in everyone's browser, so
  * they are normalised here rather than trusted. The client escapes on render
@@ -139,7 +143,14 @@ export class TimerRoom {
 
     this.addLog(`${member.name} joined`);
     this.broadcast();
-    server.send(JSON.stringify({ type: "welcome", you: member, ...this.snapshot() }));
+    server.send(
+      JSON.stringify({
+        type: "welcome",
+        you: member,
+        positions: [...(this.positions || new Map())].map(([id, p]) => ({ id, ...p })),
+        ...this.snapshot(),
+      }),
+    );
 
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -155,14 +166,24 @@ export class TimerRoom {
     const me = ws.deserializeAttachment() || { name: "Someone" };
     const s = this.state;
     const now = Date.now();
+
+    // Movement is relayed, never stored. It must not fall through to the
+    // save-and-broadcast below: at ~10 updates a second per walker that would
+    // mean a storage write and a full timer broadcast per step.
+    if (msg.type === "move") {
+      this.relayMove(ws, me, msg);
+      return;
+    }
+
+    if (msg.type === "ping") {
+      ws.send(JSON.stringify({ type: "pong", serverTime: now, echo: msg.echo }));
+      return;
+    }
+
     s.lastSeen = now;
     this.touchIndex();
 
     switch (msg.type) {
-      case "ping":
-        ws.send(JSON.stringify({ type: "pong", serverTime: now, echo: msg.echo }));
-        return;
-
       case "start": {
         if (s.running) return;
         if (s.remaining <= 0) s.remaining = this.phaseDuration(s.phase);
@@ -242,7 +263,10 @@ export class TimerRoom {
 
   async webSocketClose(ws) {
     const me = ws.deserializeAttachment();
-    if (me) this.addLog(`${me.name} left`);
+    if (me) {
+      this.addLog(`${me.name} left`);
+      this.positions?.delete(me.id);
+    }
     // The socket is still listed until this handler returns, so exclude it.
     await this.markEmptyIfLast(ws);
     this.broadcast(ws);
@@ -362,6 +386,46 @@ export class TimerRoom {
           this.lastTouch = 0; // let the next visitor retry
         }),
     );
+  }
+
+  /**
+   * Relay one person's position to everyone else.
+   *
+   * Positions live in memory only — never in storage. They are disposable:
+   * if this object hibernates and forgets them, the next person to arrive
+   * triggers a re-send (see "here" below) and the room fills back in.
+   * The sender's id comes from their socket, not the message, so nobody can
+   * move somebody else's character.
+   */
+  relayMove(ws, me, msg) {
+    const now = Date.now();
+    const seen = this.lastMove || (this.lastMove = new WeakMap());
+    if (now - (seen.get(ws) || 0) < 40) return; // ~25/sec ceiling per person
+    seen.set(ws, now);
+
+    const x = Number(msg.x);
+    const y = Number(msg.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+
+    const pos = {
+      x: Math.max(0, Math.min(ROOM_W, Math.round(x))),
+      y: Math.max(0, Math.min(ROOM_H, Math.round(y))),
+      d: [0, 1, 2, 3].includes(msg.d) ? msg.d : 0,
+      moving: msg.moving === true,
+    };
+
+    this.positions ||= new Map();
+    this.positions.set(me.id, pos);
+
+    const payload = JSON.stringify({ type: "pos", id: me.id, ...pos });
+    for (const other of this.ctx.getWebSockets()) {
+      if (other === ws) continue;
+      try {
+        other.send(payload);
+      } catch {
+        /* going away; the close handler tidies up */
+      }
+    }
   }
 
   phaseDuration(phase) {
