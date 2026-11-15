@@ -41,6 +41,9 @@ await wait(400);
 check("both connect + get welcome", a.last && b.last);
 check("A sees 2 members", a.last.members.length === 2, JSON.stringify(a.last.members));
 check("default focus 25m", a.last.settings.focus === 25 && a.last.remaining === 25 * 60000);
+check("auto-start is on by default", a.last.settings.autoStart === true, String(a.last.settings.autoStart));
+// Auto-start governs phase handovers, not the first one: a new room still
+// waits for somebody to press Start.
 check("starts paused", a.last.running === false);
 
 // custom lengths

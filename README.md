@@ -77,7 +77,9 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
   from 1 to 180 minutes, plus how many rounds precede a long break. Changes
   apply to everyone. Presets: Classic 25/5/15, Deep 50/10/30, Sprint 15/3/15.
 - **Full cycle** — focus → short break → focus → … → long break, with an
-  optional auto-start for the next phase.
+  auto-start for the next phase, on by default so the group flows from focus
+  to break without anyone clicking at the handover. It governs handovers only:
+  a new room still waits for somebody to press Start.
 - **An empty room resets itself.** When the last person leaves, the clock stops
   advancing (no phases turning over, no chimes, to nobody), and the next person
   to arrive gets a stopped timer at the top of a fresh focus phase — the room's

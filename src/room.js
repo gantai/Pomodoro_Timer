@@ -15,7 +15,9 @@ const DEFAULT_SETTINGS = {
   short: 5,
   long: 15,
   roundsBeforeLong: 4,
-  autoStart: false,
+  // On by default: the point of a shared timer is that the group flows from
+  // focus to break together without someone having to click at each handover.
+  autoStart: true,
   sound: true,
 };
 
