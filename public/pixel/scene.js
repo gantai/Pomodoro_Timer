@@ -294,6 +294,7 @@ export class PixelRoom {
         pal: paletteFor(m.id),
         tx: seat.x,
         ty: seat.y,
+        placed: false, // the seat is a guess until they say where they are
       });
     });
     for (const id of [...this.people.keys()]) if (!seen.has(id)) this.people.delete(id);
@@ -306,6 +307,24 @@ export class PixelRoom {
     p.ty = y;
     p.d = d;
     p.moving = moving;
+    // The first word of where someone is isn't a walk. Tweening from the
+    // guessed seat sent people strolling across the room on every reload.
+    if (!p.placed) {
+      p.x = x;
+      p.y = y;
+      p.placed = true;
+    }
+  }
+
+  /** Put yourself somewhere outright — used to restore where you were. */
+  placeMe(x, y, d = 0) {
+    const me = this.people.get(this.meId);
+    if (!me) return;
+    const p = clampToRoom(x, y);
+    me.x = me.tx = p.x;
+    me.y = me.ty = p.y;
+    me.d = [0, 1, 2, 3].includes(d) ? d : 0;
+    me.moving = false;
   }
 
   myPosition() {

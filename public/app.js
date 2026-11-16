@@ -398,7 +398,10 @@ class Room {
     this.roomHidden = readPref(ROOM_PREF_KEY) === "1";
     this.wallHidden = readPref(WALL_PREF_KEY) === "1";
     this.scene = new PixelRoom($("pixelRoom"), {
-      onMove: (pos) => this.send({ type: "move", ...pos }),
+      onMove: (pos) => {
+        this.send({ type: "move", ...pos });
+        this.rememberPos(pos);
+      },
       onPlace: (i, x, y) => this.send({ type: "place", i, x, y }),
       onRemove: (index) => this.send({ type: "removeItem", index }),
     });
@@ -476,6 +479,37 @@ class Room {
       el.style.left = `${t2.left}px`;
       el.style.top = `${t2.top}px`;
     });
+  }
+
+  /* --- where you were standing ---
+     Kept in this browser, per room. The server holds positions in memory
+     only, and a restart — every deploy is one — empties it; a reload empties
+     the page. This is the one place that remembers across both. */
+
+  posKey() {
+    return `pomo.pos.${this.id}`;
+  }
+
+  rememberPos(pos) {
+    const now = Date.now();
+    // Walking is ten updates a second, so throttle — but always keep the one
+    // where you stop, or a reload puts you half a second short of where you
+    // actually stood.
+    if (pos.moving && now - (this.posSavedAt || 0) < 500) return;
+    this.posSavedAt = now;
+    writePref(this.posKey(), JSON.stringify({ x: pos.x, y: pos.y, d: pos.d }));
+  }
+
+  restorePos() {
+    try {
+      const saved = JSON.parse(readPref(this.posKey(), "null"));
+      if (!saved || !Number.isFinite(saved.x) || !Number.isFinite(saved.y)) return;
+      this.scene?.placeMe(saved.x, saved.y, saved.d);
+      const mine = this.scene?.myPosition();
+      if (mine) this.send({ type: "move", ...mine });
+    } catch {
+      /* nothing saved, or not ours */
+    }
   }
 
   /* --- 涂鸦墙 · the doodle wall --- */
@@ -817,6 +851,14 @@ class Room {
         case "deleted":
           this.roomDeleted(msg.by);
           return;
+        case "roll": {
+          // Somebody arrived and the server has nothing to tell them about
+          // where we all are. Everyone answers, spread over a moment so a
+          // full room does not answer in one burst.
+          const mine = this.scene?.myPosition();
+          if (mine) setTimeout(() => this.send({ type: "move", ...mine }), 80 + Math.random() * 300);
+          return;
+        }
       }
 
       if (msg.type === "welcome") {
@@ -839,6 +881,8 @@ class Room {
         if (msg.positions) {
           for (const p of msg.positions) this.scene?.setPosition(p.id, p.x, p.y, p.d, false);
         }
+        // After the room is built: back to where this browser last stood.
+        if (msg.type === "welcome") this.restorePos();
       }
     };
 
@@ -911,8 +955,14 @@ class Room {
       if (this.knownIds) {
         for (const id of ids) {
           if (!this.knownIds.has(id) && id !== this.me?.id) {
-            const mine = this.scene.myPosition();
-            if (mine) setTimeout(() => this.send({ type: "move", ...mine }), 150 + Math.random() * 250);
+            // Read the position when the message goes, not now: on a reload
+            // this runs before the saved position is restored, and sending
+            // the starting seat a moment after the real spot walked everyone
+            // else's copy of you straight back to it.
+            setTimeout(() => {
+              const mine = this.scene?.myPosition();
+              if (mine) this.send({ type: "move", ...mine });
+            }, 150 + Math.random() * 250);
             break;
           }
         }

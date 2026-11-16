@@ -281,11 +281,27 @@ prompts everyone to re-send theirs once.
 
 ## One person, one character
 
-A browser carries its own id, sent when it connects. A connection whose id
-matches one already in the room takes that identity over: the old socket is
-closed and the new one inherits the member id, position and name tag, so a
-reload — or opening the room in a second window — never leaves a second copy
-of you standing there. The window that loses the room is told so explicitly in
+A browser carries its own id, sent when it connects. The member id everyone
+sees is derived from it — eight hex characters of its SHA-256, one-way, so it
+cannot be turned back into the handle — rather than minted per connection.
+That is what keeps the room still across a restart: a deploy drops every
+socket, and a minted id would come back new, rebuilding each character at its
+starting seat in a fresh colour. A derived one comes back the same, and so
+does the character.
+
+A connection whose id matches one already in the room takes that identity
+over: the old socket is closed and the new one inherits the member id,
+position and name tag, so a reload — or opening the room in a second window —
+never leaves a second copy of you standing there.
+
+Where you stand is remembered in your own browser, per room. The server keeps
+positions in memory only — a restart empties it, a reload empties the page —
+and the browser is the one place that survives both. On arrival the server
+also asks everyone already present to say where they are, since the people
+standing in the room know even when the server has forgotten. The first
+report of someone's position is applied outright rather than walked to; the
+starting seat is a guess, and tweening from it sent people strolling across
+the room on every reload. The window that loses the room is told so explicitly in
 a message rather than through a close code, because a close handshake can
 stall and leave an abandoned window looking connected. The id is never
 broadcast: anyone holding it could take your place.

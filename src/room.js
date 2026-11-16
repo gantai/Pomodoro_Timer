@@ -78,6 +78,12 @@ const MAX_NAME = 24;
 const ICON_IDS = ["person", "cat", "dog", "fox", "bunny", "bear", "frog", "owl", "penguin"];
 const cleanIcon = (raw) => (ICON_IDS.includes(raw) ? raw : null);
 
+/** Eight hex characters of SHA-256: stable for a browser, useless for guessing it. */
+async function memberIdFor(cid) {
+  const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(cid)));
+  return [...bytes.slice(0, 4)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 /**
  * A browser tab's own id, used to recognise a reconnect. Never broadcast:
  * knowing someone's cid would let you take over their place in the room.
@@ -273,7 +279,13 @@ export class TimerRoom {
 
     if (!takeover) this.state.guestSeq += 1;
     const member = {
-      id: takeover ? takeover.id : crypto.randomUUID().slice(0, 8),
+      // The id is derived from the browser's handle, not minted. After a
+      // deploy or a restart every socket is gone, so nothing is there to
+      // take over from; a minted id would be new, and everyone's character
+      // would be rebuilt at the starting seats in a new colour. A derived
+      // one survives, so the room picks up exactly where it was. One-way,
+      // so it does not leak the handle it came from.
+      id: takeover ? takeover.id : cid ? await memberIdFor(cid) : crypto.randomUUID().slice(0, 8),
       cid,
       name:
         cleanName(url.searchParams.get("name")) ||
@@ -287,8 +299,18 @@ export class TimerRoom {
     await this.save();
 
     // Reusing the id keeps their position and their place in the room, so a
-    // reload is invisible to everyone else — no "left", no "joined".
-    if (!takeover) this.addLog("joined", { name: member.name });
+    // reload is invisible to everyone else — no "left", no "joined". When the
+    // old socket's close landed first there is nothing to take over, but the
+    // id is derived from the browser so it is the same person back: pull the
+    // "left" that was just logged rather than adding a "joined" under it.
+    const leftAt = this.recentLeaves?.get(member.id);
+    if (!takeover && leftAt && Date.now() - leftAt < 8_000) {
+      this.recentLeaves.delete(member.id);
+      const k = this.state.log.findIndex((e) => e.k === "left" && e.a?.name === member.name);
+      if (k >= 0) this.state.log.splice(k, 1);
+    } else if (!takeover) {
+      this.addLog("joined", { name: member.name });
+    }
     this.broadcast();
     server.send(
       JSON.stringify({
@@ -301,6 +323,11 @@ export class TimerRoom {
         ...this.snapshot(),
       }),
     );
+
+    // Everyone already here is asked to say where they are. Positions live in
+    // memory only, so after a restart there is nothing to hand the arrival;
+    // the people still standing in the room know, and they tell it.
+    this.sendAll({ type: "roll" }, server);
 
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -609,6 +636,7 @@ export class TimerRoom {
     if (me) {
       this.addLog("left", { name: me.name });
       this.positions?.delete(me.id);
+      (this.recentLeaves ||= new Map()).set(me.id, Date.now());
     }
     // The socket is still listed until this handler returns, so exclude it.
     await this.markEmptyIfLast(ws);
