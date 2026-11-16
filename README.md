@@ -124,7 +124,11 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
   a whole layout, so two people rearranging at once merge instead of
   overwriting each other.
 - **A message board (留言板).** Under the doodle wall and as wide as the room,
-  not a dialog behind a button: the notes are simply there, with the latest first and a badge when
+  not a dialog behind a button: the notes are simply there, oldest at the top
+  and the newest against the box you type in, one column. A grid gave no way
+  to tell whether to read across or down, and newest-first contradicted the
+  compose box beneath it. The board opens at the newest note and holds its
+  place if one arrives while you are reading back; your own are outlined, with the latest first and a badge when
   something arrived since you last looked. They outlive every session in the
   room and go only when the room does. Anyone can take any note down, exactly
   as anyone can move the furniture — there are no accounts here, so there is

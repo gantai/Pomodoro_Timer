@@ -665,18 +665,21 @@ class Room {
   renderNotes() {
     const list = $("boardList");
     const seen = Number(readPref(this.seenKey(), "0")) || 0;
+    // Hold the bottom if that is where we were, so a note arriving while you
+    // read older ones does not yank the list out from under you.
+    const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 24;
 
     if (!this.notes.length) {
       list.innerHTML = `<li class="board__empty">${esc(t("board.empty"))}</li>`;
     } else {
+      // Oldest first: the newest note ends up against the box you type in,
+      // which is the only arrangement that matches where the compose box is.
       list.innerHTML = this.notes
-        .slice()
-        .reverse()
         .map(
-          (n) => `<li class="note" data-note="${esc(n.id)}">
+          (n) => `<li class="note${n.by === this.me?.id ? " note--mine" : ""}" data-note="${esc(n.id)}">
             <img src="${iconDataURL(n.icon || "person", n.by, 2)}" alt="" />
             <div>
-              <div class="note__who"><b>${esc(n.name)}</b> · ${esc(ago(n.at))}</div>
+              <div class="note__who"><b>${esc(n.name)}</b><time>${esc(ago(n.at))}</time></div>
               <div class="note__text">${esc(n.text)}</div>
             </div>
             <button class="note__x" data-unnote="${esc(n.id)}" title="${esc(t("board.removeTitle"))}" aria-label="${esc(t("board.removeTitle"))}">&times;</button>
@@ -687,13 +690,22 @@ class Room {
         b.onclick = () => this.send({ type: "unnote", id: b.dataset.unnote });
       }
     }
-    list.classList.toggle("is-scrollable", list.scrollHeight > list.clientHeight + 4);
+    if (atBottom || this.boardFirstPaint !== false) list.scrollTop = list.scrollHeight;
+    this.boardFirstPaint = false;
+    this.markBoardEdges();
 
     const fresh = this.notes.filter((n) => n.at > seen && n.by !== this.me?.id).length;
     const pill = $("boardNew");
     pill.hidden = fresh === 0;
     pill.textContent = t("board.new", { n: fresh });
     $("boardCount").textContent = t("board.count", { n: this.notes.length, max: MAX_NOTES });
+  }
+
+  /** Which edges of the board have notes hidden past them. */
+  markBoardEdges() {
+    const l = $("boardList");
+    l.classList.toggle("has-above", l.scrollTop > 4);
+    l.classList.toggle("has-below", l.scrollHeight - l.scrollTop - l.clientHeight > 4);
   }
 
   postNote() {
@@ -1064,6 +1076,7 @@ class Room {
         this.postNote();
       }
     };
+    $("boardList").addEventListener("scroll", () => this.markBoardEdges(), { passive: true });
     for (const el of [$("boardList"), $("noteInput")]) {
       el.addEventListener("focusin", () => this.markBoardSeen());
       el.addEventListener("click", () => this.markBoardSeen());
