@@ -102,10 +102,10 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
   bookshelves, plants, a rug, a cat — with the countdown as a HUD over it.
   Everyone has a character labelled with their display name and coloured
   deterministically from their id, so you look the same to everyone. Walk with
-  the arrow keys or WASD, or click where you want to go; furniture blocks the
-  way. Phase colour becomes the room's light: warm lamps on focus, cooler on a
-  break. **Hide the room** in the rail swaps back to a plain clock, remembered
-  per browser.
+  the arrow keys or WASD, or click where you want to go; only the walls stop
+  you, so you can stand at a desk rather than beside it. Phase colour becomes
+  the room's light: warm lamps on focus, cooler on a break. **Hide the room**
+  in the rail swaps back to a plain clock, remembered per browser.
 - **Decorate it together.** *Decorate the room* opens a tray of furniture —
   desks, chairs, shelves, plants, windows, a clock, a rug, a cat — and clicking
   the room places the selected piece on an 8px grid; the eraser takes things
@@ -173,7 +173,7 @@ src/index.js      Worker: routes /api/room/<id> to the room, everything else to 
 src/room.js       TimerRoom Durable Object — the shared clock
 src/roomIndex.js  RoomIndex Durable Object — last-use record and the 30-day sweep
 public/pixel/art.js    palette, sprites-as-text, per-person colours
-public/pixel/scene.js  layout, collision, movement, renderer
+public/pixel/scene.js  backdrop baking, movement, placement, renderer
 public/index.html Landing page + room app shell
 public/styles.css Layout, theming, phase accent
 public/app.js     WebSocket client, clock-offset correction, rendering, chime
@@ -186,13 +186,19 @@ Client → server: `start`, `pause`, `reset`, `skip`, `phase`, `settings`,
 `ping`. A display name and icon may also be supplied as `?name=` and `?icon=`
 on the WebSocket URL, which is how they are set at join time.
 
+Server → client: `welcome` (once, with your identity), `state` (on every
+change), `layout`, `pos`, `replaced`, `notice`, `pong`. Every `state` carries
+the full room snapshot, so a client that misses a message self-heals on the
+next one.
+
 The furniture layout goes out on its own `layout` message and in the welcome,
 not folded into the timer snapshot: it only changes while someone is
 decorating, and putting a kilobyte of furniture on every start and pause
 would be waste. Item ids are validated against the catalogue and positions
 clamped server-side, the same posture as names and icons.
 
-`move` is deliberately separate from everything else: it is relayed to theother sockets as `pos` and never written to storage or mixed into the timer
+`move` is deliberately separate from everything else: it is relayed to the
+other sockets as `pos` and never written to storage or mixed into the timer
 broadcast. At ten updates a second per walker, doing otherwise would mean a
 storage write and a full state broadcast per footstep. Positions live in the
 object's memory only; if it hibernates and forgets them, the next arrival
@@ -227,6 +233,8 @@ for free — which is how one character drawing becomes everybody in the room.
 Only three poses are hand-drawn (facing the viewer, away, and side); the walk
 cycles are derived by lifting one foot and then the other, which is the
 difference between about 45 lines of art and about 400.
-Server → client: `welcome` (once, with your identity), `state` (on every
-change), `pong`. Every `state` carries the full room snapshot, so a client that
-misses a message self-heals on the next one.
+
+The room's fixed parts — floor, walls, the light for the current phase — and
+its furniture are baked together into an offscreen canvas and drawn as a
+single image per frame, so a room full of furniture costs no more to animate
+than an empty one. It re-bakes only when the layout or the phase changes.
