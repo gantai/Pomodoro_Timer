@@ -111,9 +111,9 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
   the room's light: warm lamps on focus, cooler on a break. **Hide the room**
   in the rail swaps back to a plain clock, remembered per browser.
 - **Decorate it together.** *Decorate the room* opens a tray of furniture —
-  desks, chairs, a two-seat sofa, an electric sit-stand desk with the perching
-  stool that goes with it, shelves, plants, windows, a clock, a rug, a cat —
-  and clicking
+  desks, chairs, a brown two-seat sofa, an electric sit-stand desk with the
+  perching stool that goes with it, shelves, plants, windows, a clock, a rug,
+  a cat — and clicking
   the room places the selected piece on an 8px grid; the eraser takes things
   away. Every change is shared, persisted with the room and covered by the
   same 30-day expiry, so a group's arrangement is still there tomorrow. Undo
@@ -287,6 +287,13 @@ for free — which is how one character drawing becomes everybody in the room.
 Only three poses are hand-drawn (facing the viewer, away, and side); the walk
 cycles are derived by lifting one foot and then the other, which is the
 difference between about 45 lines of art and about 400.
+
+The sofa is the one sprite not typed out by hand: it is all clipped corners
+and a derived outline, and keeping that as literal text means recounting
+every row below any change. `tools/draw-sofa.mjs` draws it as shapes and
+prints the array to paste back in. Clipped corners turn out to be the whole
+trick for upholstery — square ones read as joinery however the thing is
+coloured.
 
 The room's fixed parts — floor, walls, the light for the current phase — and
 its furniture are baked together into an offscreen canvas and drawn as a

@@ -121,7 +121,7 @@ const DEFAULT_LAYOUT = [
   { i: "plant", x: 278, y: 146 },
   { i: "shelf", x: 0, y: 160 },
   { i: "shelf", x: 288, y: 160 },
-  { i: "sofa", x: 136, y: 158 },
+  { i: "sofa", x: 140, y: 158 },
   { i: "cat", x: 148, y: 128 },
 ];
 
