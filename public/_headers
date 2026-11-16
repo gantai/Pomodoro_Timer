@@ -1,0 +1,11 @@
+# Nothing here is content-hashed — the app is /app.js and /styles.css, by
+# those names, forever. Without this a browser is free to keep a copy for as
+# long as it likes, and Safari in particular will: a Mac showed a layout
+# several deploys old while the server had been serving the new one for days.
+#
+# `no-cache` does not mean "do not store". It means "revalidate before use",
+# so the browser still keeps the file and still gets a 304 with an empty body
+# when nothing has changed. The cost is one conditional request per file per
+# load; the alternative is people silently running old code.
+/*
+  Cache-Control: no-cache

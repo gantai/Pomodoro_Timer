@@ -551,6 +551,10 @@ class Room {
   /** The wall takes the room's scale exactly, so their pixels match. */
   sizeWall() {
     const scale = this.scene?.scale || 3;
+    // The HUD is sized from this too. It used to scale off the viewport,
+    // which on a wide window with a small room made the clock bigger than
+    // the room it was sitting on.
+    $("sceneFrame").style.setProperty("--rs", scale);
     const c = $("wallCanvas");
     c.style.width = `${WALL_W * scale}px`;
     c.style.height = `${WALL_H * scale}px`;

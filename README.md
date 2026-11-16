@@ -186,6 +186,19 @@ test` also waits out a real 60-second phase to exercise the storage alarm.
 `npm run test:expiry` needs no server: it runs the 30-day sweep against a stub
 storage layer, so rooms can be aged arbitrarily without waiting a month.
 
+`public/_headers` sets `Cache-Control: no-cache` on everything. Nothing here
+is content-hashed — the app is `/app.js` and `/styles.css` by those names,
+forever — so without it a browser may keep a copy indefinitely, and Safari
+does: a Mac was found running a layout several deploys old. `no-cache` means
+revalidate before use, not "don't store", so the file is still cached and
+still answered with an empty 304 when it hasn't changed.
+
+Safari also needs `-webkit-` on `backdrop-filter` and `mask-image`, or the
+HUD loses its blur and the message board loses the fade at its scroll edge;
+and it refuses to toggle a `<details>` whose `<summary>` has had its `display`
+changed, which is why the activity fold's flex row is a span inside the
+summary rather than the summary itself.
+
 `npm run test:lasting` checks what a room keeps when everyone goes home — the
 empty-room reset must clear the run and leave the furniture, the board and the
 wall alone — and that deleting really does take all of it. It wants a server
