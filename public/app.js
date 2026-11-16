@@ -131,23 +131,24 @@ function go(roomId) {
    real choice, so the "asked" flag is stored separately from the name itself —
    otherwise an empty name would re-open the gate on every join. */
 
-/* This tab's own handle, so the server recognises a reconnect instead of
-   treating it as a second person arriving. Session-scoped on purpose: a
-   reload keeps your identity, while a second tab is genuinely a second
-   person — which is also how you test the room with yourself. */
+/* This browser's own handle, so the server recognises a reconnect instead of
+   treating it as a second person arriving. Stored per browser rather than per
+   tab on purpose: one person should be one character in the room, so opening
+   the room in a second window takes over the first rather than standing next
+   to it. Two different browsers, or two devices, are still two people. */
 const CID_KEY = "pomo.cid";
 
 function clientId() {
   try {
-    let v = sessionStorage.getItem(CID_KEY);
+    let v = localStorage.getItem(CID_KEY);
     if (!v) {
       v = crypto.randomUUID();
-      sessionStorage.setItem(CID_KEY, v);
+      localStorage.setItem(CID_KEY, v);
     }
     return v;
   } catch {
-    // No sessionStorage: fall back to a per-load id. Reconnects within this
-    // page still take over correctly; a reload starts fresh.
+    // No storage: fall back to a per-load id. Reconnects within this page
+    // still take over correctly; a reload starts fresh.
     return (clientId.fallback ||= crypto.randomUUID());
   }
 }
@@ -386,6 +387,31 @@ class Room {
   }
 
 
+  /**
+   * This window has been replaced by another one holding the same identity.
+   * Give up the room quietly — reconnecting would take it straight back and
+   * the two windows would fight over it forever.
+   */
+  standDown() {
+    if (this.dead) return;
+    this.dead = true;
+    clearInterval(this.ticker);
+    clearInterval(this.pinger);
+    clearInterval(this.tagTimer);
+    this.scene?.destroy();
+    if (this.ws) {
+      this.ws.onclose = null;
+      try {
+        this.ws.close();
+      } catch {
+        /* already closing */
+      }
+    }
+    $("presenceDot").classList.remove("live", "down");
+    $("connStatus").textContent = "open in another window";
+    toast("You opened this room in another window — reload here to use this one instead");
+  }
+
   /* --- transport --- */
 
   connect() {
@@ -418,6 +444,10 @@ class Room {
         this.scene?.setPosition(msg.id, msg.x, msg.y, msg.d, msg.moving);
         return;
       }
+      if (msg.type === "replaced") {
+        this.standDown();
+        return;
+      }
       if (msg.type === "welcome") {
         this.me = msg.you;
         this.scene?.setMe(msg.you.id);
@@ -436,8 +466,15 @@ class Room {
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (ev) => {
       if (this.dead) return;
+      // 4000: this room was opened somewhere else and took our place. If we
+      // reconnected we would take it straight back, and the two would fight
+      // over the room forever.
+      if (ev?.code === 4000) {
+        this.standDown();
+        return;
+      }
       this.setPresence("down");
       const wait = Math.min(8000, 500 * 2 ** this.retry++);
       setTimeout(() => !this.dead && this.connect(), wait);

@@ -10,6 +10,7 @@
     "deploy": "wrangler deploy",
     "test": "node test/sync.test.mjs",
     "test:expiry": "node test/expiry.test.mjs",
+    "test:stale": "node test/stale.test.mjs",
     "tail": "wrangler tail"
   },
   "devDependencies": {

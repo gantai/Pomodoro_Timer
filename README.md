@@ -177,12 +177,31 @@ Client → server: `start`, `pause`, `reset`, `skip`, `phase`, `settings`,
 as `?name=` and `?icon=` on the WebSocket URL, which is how they are set at
 join time.
 
-`move` is deliberately separate from everything else: it is relayed to the
-other sockets as `pos` and never written to storage or mixed into the timer
+`move` is deliberately separate from everything else: it is relayed to theother sockets as `pos` and never written to storage or mixed into the timer
 broadcast. At ten updates a second per walker, doing otherwise would mean a
 storage write and a full state broadcast per footstep. Positions live in the
 object's memory only; if it hibernates and forgets them, the next arrival
 prompts everyone to re-send theirs once.
+
+## One person, one character
+
+A browser carries its own id, sent when it connects. A connection whose id
+matches one already in the room takes that identity over: the old socket is
+closed and the new one inherits the member id, position and name tag, so a
+reload — or opening the room in a second window — never leaves a second copy
+of you standing there. The window that loses the room is told so explicitly in
+a message rather than through a close code, because a close handshake can
+stall and leave an abandoned window looking connected. The id is never
+broadcast: anyone holding it could take your place.
+
+Behind that sits a backstop that needs nothing from the client. Sockets that
+stop answering are dropped after two and a half minutes of silence — clients
+have pinged every twenty seconds since long before any of this — so a
+connection that died without a close frame, or a browser running an old cached
+build, cannot stand in the room indefinitely. `npm run test:stale` exercises
+it against a server started with `--var SOCKET_STALE_MS:4000`; the window has
+to stay several times the ping interval, or a backgrounded tab with throttled
+timers gets reaped while it is perfectly alive.
 
 ## Drawing the room without an asset pack
 

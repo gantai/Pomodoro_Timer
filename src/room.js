@@ -61,6 +61,17 @@ const cleanIcon = (raw) => (ICON_IDS.includes(raw) ? raw : null);
  */
 const cleanCid = (raw) => (typeof raw === "string" && /^[A-Za-z0-9-]{8,64}$/.test(raw) ? raw : null);
 
+/**
+ * How long a socket may go silent before we treat it as dead.
+ *
+ * Clients ping every 20 seconds, but a backgrounded tab has its timers
+ * throttled to roughly once a minute, so the window has to be generous. A
+ * live client reaped by mistake simply reconnects and takes its identity
+ * back, which costs nothing; a half-open socket left in place is a duplicate
+ * person standing in the room, which is what this is here to prevent.
+ */
+const SOCKET_STALE_MS = 150_000;
+
 /** Logical pixel size of the room; positions are clamped to it. */
 const ROOM_W = 320;
 const ROOM_H = 192;
@@ -145,6 +156,10 @@ export class TimerRoom {
     // fresh identity, so a reload or a dropped connection showed up twice in
     // everyone else's room until the dead socket was finally noticed — which
     // over a real network can take a while.
+    // Clear out anything that has stopped answering before working out who
+    // is in the room, so a dead socket never greets the new arrival.
+    this.reapStale();
+
     const cid = cleanCid(url.searchParams.get("cid"));
     const takeover = cid ? this.evictPrevious(cid) : null;
 
@@ -190,6 +205,7 @@ export class TimerRoom {
     const me = ws.deserializeAttachment() || { name: "Someone" };
     const s = this.state;
     const now = Date.now();
+    (this.seenAt ||= new Map()).set(ws, now);
 
     // Movement is relayed, never stored. It must not fall through to the
     // save-and-broadcast below: at ~10 updates a second per walker that would
@@ -201,6 +217,16 @@ export class TimerRoom {
 
     if (msg.type === "ping") {
       ws.send(JSON.stringify({ type: "pong", serverTime: now, echo: msg.echo }));
+      // Pings are the room's heartbeat, so they are also when it tidies up
+      // after anyone who stopped answering — no new arrival required.
+      const every = Math.min(30_000, (Number(this.env.SOCKET_STALE_MS) || SOCKET_STALE_MS) / 3);
+      if (now - (this.lastReap || 0) > every) {
+        this.lastReap = now;
+        if (this.reapStale() > 0) {
+          await this.save();
+          this.broadcast();
+        }
+      }
       return;
     }
 
@@ -479,8 +505,57 @@ export class TimerRoom {
   }
 
   /**
-   * Close any socket already held by this browser tab and hand its identity
-   * to the new one. Evicted sockets are parked in `zombies` so they stop
+   * Drop sockets we have not heard from in a long time.
+   *
+   * This is the backstop that does not depend on the client: a browser
+   * running an old cached build, or a connection that died without a close
+   * frame, would otherwise stand in the room indefinitely. Every message
+   * counts as a sign of life, and clients have pinged every 20 seconds since
+   * long before any of this.
+   */
+  reapStale() {
+    const seen = (this.seenAt ||= new Map());
+    const now = Date.now();
+    // Overridable so tests can age a socket out in seconds instead of minutes.
+    const staleMs = Number(this.env.SOCKET_STALE_MS) || SOCKET_STALE_MS;
+    let dropped = 0;
+    for (const ws of this.ctx.getWebSockets()) {
+      if (this.isZombie(ws)) continue;
+      const at = seen.get(ws);
+      if (at === undefined) {
+        // First sight of this socket — after a hibernation that is every
+        // socket, so give them all a full window before judging them.
+        seen.set(ws, now);
+        continue;
+      }
+      if (now - at < staleMs) continue;
+
+      seen.delete(ws);
+      this.zombies ||= new WeakSet();
+      this.zombies.add(ws);
+      const att = ws.deserializeAttachment();
+      if (att) {
+        try {
+          ws.serializeAttachment({ ...att, zombie: true });
+        } catch {
+          /* already closing */
+        }
+        this.positions?.delete(att.id);
+        this.addLog(`${att.name} dropped out`);
+      }
+      try {
+        ws.close(4001, "no sign of life");
+      } catch {
+        /* already gone */
+      }
+      dropped++;
+    }
+    return dropped;
+  }
+
+  /**
+   * Close any socket already held by this browser and hand its identity to
+   * the new one. Evicted sockets are parked in `zombies` so they stop
    * counting as members the moment they are replaced, rather than when their
    * close event eventually lands.
    */
@@ -492,6 +567,14 @@ export class TimerRoom {
       previous = att;
       this.zombies ||= new WeakSet();
       this.zombies.add(old);
+      // Tell it in a message rather than relying on the close code: a close
+      // handshake can stall, and then the abandoned window would sit there
+      // looking connected for as long as it stayed open.
+      try {
+        old.send(JSON.stringify({ type: "replaced" }));
+      } catch {
+        /* already gone */
+      }
       // The WeakSet is memory, which a hibernation would forget; the
       // attachment is not. Mark both so an evicted socket can never come
       // back as a second copy of somebody.
