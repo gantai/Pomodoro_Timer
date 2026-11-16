@@ -75,7 +75,7 @@ const cleanCid = (raw) => (typeof raw === "string" && /^[A-Za-z0-9-]{8,64}$/.tes
 const SOCKET_STALE_MS = 150_000;
 
 /** Furniture people may place. Kept in step with public/pixel/art.js. */
-const ITEM_IDS = ["desk", "chair", "shelf", "plant", "window", "clock", "cat", "rug"];
+const ITEM_IDS = ["desk", "chair", "standdesk", "stool", "shelf", "plant", "window", "clock", "cat", "rug"];
 const MAX_ITEMS = 80;
 
 /** The room everyone starts with. Kept in step with DEFAULT_LAYOUT there. */
@@ -92,8 +92,8 @@ const DEFAULT_LAYOUT = [
   { i: "chair", x: 104, y: 80 },
   { i: "desk", x: 168, y: 44 },
   { i: "chair", x: 184, y: 80 },
-  { i: "desk", x: 240, y: 44 },
-  { i: "chair", x: 256, y: 80 },
+  { i: "standdesk", x: 240, y: 42 },
+  { i: "stool", x: 256, y: 80 },
   { i: "chair", x: 64, y: 122 },
   { i: "chair", x: 240, y: 122 },
   { i: "plant", x: 16, y: 146 },

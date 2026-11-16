@@ -99,7 +99,8 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
 - **Survives everything** — refresh, reconnect, and a late joiner picks up the
   timer mid-flight. Room state is persisted in the Durable Object.
 - **A room you can walk around.** The stage is a top-down pixel study — desks,
-  bookshelves, plants, a rug, a cat — with the countdown as a HUD over it.
+  one of them a sit-stand desk, bookshelves, plants, a rug, a cat — with the
+  countdown as a HUD over it.
   Everyone has a character labelled with their display name and coloured
   deterministically from their id, so you look the same to everyone. Walk with
   the arrow keys or WASD, or click where you want to go; only the walls stop
@@ -107,7 +108,8 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
   the room's light: warm lamps on focus, cooler on a break. **Hide the room**
   in the rail swaps back to a plain clock, remembered per browser.
 - **Decorate it together.** *Decorate the room* opens a tray of furniture —
-  desks, chairs, shelves, plants, windows, a clock, a rug, a cat — and clicking
+  desks, chairs, an electric sit-stand desk with the perching stool that goes
+  with it, shelves, plants, windows, a clock, a rug, a cat — and clicking
   the room places the selected piece on an 8px grid; the eraser takes things
   away. Every change is shared, persisted with the room and covered by the
   same 30-day expiry, so a group's arrangement is still there tomorrow. Undo

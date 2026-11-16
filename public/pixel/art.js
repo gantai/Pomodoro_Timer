@@ -30,6 +30,14 @@ export const PAL = {
   s: "#8d8d96",
   S: "#b9b9c2",
 
+  // laminate (the sit-stand desktop, so it reads apart from the wooden ones)
+  l: "#e6e8ec",
+  m: "#c8ccd4",
+
+  // upholstery
+  c: "#3f4654",
+  v: "#5a6474",
+
   // greens
   g: "#4a8a50",
   G: "#63ab68",
@@ -70,6 +78,59 @@ export const DESK = [
   "0e0000000000000000000000000000e0",
   "0e............................e0",
   "00............................00",
+];
+
+/**
+ * An electric sit-stand desk. Same footprint as the plain desk so the two
+ * interchange on the grid, but a pale laminate top on a steel frame instead of
+ * wood, two column feet rather than four legs, and the thing that actually
+ * says "electric": the little keypad with its lit display under the front
+ * edge. At this scale height can't be drawn, so the frame and the keypad have
+ * to carry it.
+ */
+export const STANDDESK = [
+  "................................",
+  "..........00000000..............",
+  ".........0SSSSSSSS0.............",
+  ".........0SbbbbbbS0.............",
+  ".........0SbbbbbbS0.............",
+  ".........0SSSSSSSS0.............",
+  "..........0ssssss0..............",
+  "...........0ssss0...............",
+  "00000000000000000000000000000000",
+  "0llllllllllllllllllllllllllllll0",
+  "0llwwwllllllllllllllllll0yy0lll0",
+  "0llwwwllllllllllllllllll0YY0lll0",
+  "0lllllllllllllllllllllll000llll0",
+  "0llllllllllllllllllllllllllllll0",
+  "0mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm0",
+  "00000000000000000000000000000000",
+  "..0SSSS0.........0SSSS0.000000..",
+  "..0ssss0.........0ssss0.0kYYk0..",
+  "..000000.........000000.0kkkk0..",
+  "........................000000..",
+];
+
+/**
+ * The stool that goes with it: a saddle seat you perch on, one gas column, and
+ * a domed base that rocks. Round where the wooden chair is square, so which is
+ * which is clear at a glance.
+ */
+export const STOOL = [
+  "....000000......",
+  "..00cccccc00....",
+  ".0cccccccccc0...",
+  ".0cvvvvvvvvc0...",
+  ".0cvvvvvvvvc0...",
+  ".0cccccccccc0...",
+  "..00cc00cc00....",
+  ".....0SS0.......",
+  ".....0SS0.......",
+  "...0SssssS0.....",
+  "..0ssssssss0....",
+  "..0sSSSSSSs0....",
+  "..0ssssssss0....",
+  "...00000000.....",
 ];
 
 export const SHELF = [
@@ -472,6 +533,8 @@ export function paintRug(ctx, x, y) {
 export const CATALOGUE = {
   desk: { label: "Desk", art: DESK },
   chair: { label: "Chair", art: CHAIR },
+  standdesk: { label: "Sit-stand desk", art: STANDDESK },
+  stool: { label: "Sit-stand stool", art: STOOL },
   shelf: { label: "Shelf", art: SHELF },
   plant: { label: "Plant", art: PLANT },
   window: { label: "Window", art: WINDOW },
@@ -510,8 +573,8 @@ export const DEFAULT_LAYOUT = [
   { i: "chair", x: 104, y: 80 },
   { i: "desk", x: 168, y: 44 },
   { i: "chair", x: 184, y: 80 },
-  { i: "desk", x: 240, y: 44 },
-  { i: "chair", x: 256, y: 80 },
+  { i: "standdesk", x: 240, y: 42 },
+  { i: "stool", x: 256, y: 80 },
   { i: "chair", x: 64, y: 122 },
   { i: "chair", x: 240, y: 122 },
   { i: "plant", x: 16, y: 146 },
