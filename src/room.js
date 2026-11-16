@@ -102,7 +102,7 @@ const cleanCid = (raw) => (typeof raw === "string" && /^[A-Za-z0-9-]{8,64}$/.tes
 const SOCKET_STALE_MS = 150_000;
 
 /** Furniture people may place. Kept in step with public/pixel/art.js. */
-const ITEM_IDS = ["desk", "chair", "sofa", "standdesk", "monitor", "shelf", "plant", "window", "clock", "cat", "rug"];
+const ITEM_IDS = ["desk", "chair", "sofa", "standdesk", "monitor", "coffee", "counter", "cafetable", "vending", "treadmill", "dumbbells", "shelf", "plant", "window", "clock", "cat", "rug"];
 const MAX_ITEMS = 80;
 
 /** The room everyone starts with. Kept in step with DEFAULT_LAYOUT there. */
@@ -121,14 +121,18 @@ const DEFAULT_LAYOUT = [
   { i: "chair", x: 184, y: 80 },
   { i: "standdesk", x: 240, y: 42 },
   { i: "chair", x: 256, y: 80 },
-  { i: "chair", x: 64, y: 122 },
-  { i: "chair", x: 240, y: 122 },
-  { i: "plant", x: 16, y: 146 },
-  { i: "plant", x: 278, y: 146 },
-  { i: "shelf", x: 0, y: 160 },
-  { i: "shelf", x: 288, y: 160 },
+  { i: "treadmill", x: 12, y: 118 },
+  { i: "dumbbells", x: 40, y: 162 },
+  { i: "plant", x: 76, y: 168 },
   { i: "sofa", x: 135, y: 156 },
   { i: "cat", x: 148, y: 128 },
+  { i: "vending", x: 294, y: 118 },
+  { i: "counter", x: 240, y: 166 },
+  { i: "coffee", x: 250, y: 146 },
+  { i: "cafetable", x: 210, y: 154 },
+  { i: "chair", x: 190, y: 160 },
+  { i: "chair", x: 236, y: 140 },
+  { i: "plant", x: 300, y: 168 },
 ];
 
 /** Items are placed by strangers, so only id and position survive the trip. */

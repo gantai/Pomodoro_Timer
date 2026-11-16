@@ -99,9 +99,11 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
 - **Live presence and activity** — who's here, and who last started or paused.
 - **Survives everything** — refresh, reconnect, and a late joiner picks up the
   timer mid-flight. Room state is persisted in the Durable Object.
-- **A room you can walk around.** The stage is a top-down pixel study — desks,
-  one of them a sit-stand desk, bookshelves, plants, a rug, a cat — with the
-  countdown as a HUD over it.
+- **A room you can walk around.** The stage is a top-down pixel study: four
+  desks along the back wall, one of them a sit-stand desk, a sofa on the rug,
+  a gym corner bottom-left (treadmill, dumbbell rack) and a café corner
+  bottom-right (espresso machine on a counter, café table, vending machine) —
+  with the countdown mounted on the back wall.
   Everyone has a character labelled with their display name — the tag is hung
   by its underside from just above the head, so it clears the character at
   every scale rather than covering their face — and coloured deterministically
@@ -325,10 +327,11 @@ Only three poses are hand-drawn (facing the viewer, away, and side); the walk
 cycles are derived by lifting one foot and then the other, which is the
 difference between about 45 lines of art and about 400.
 
-The sofa is the one sprite not typed out by hand: it is all clipped corners
-and a derived outline, and keeping that as literal text means recounting
-every row below any change. `tools/draw-sofa.mjs` draws it as shapes and
-prints the array to paste back in. What makes a chesterfield legible from
+The sofa and the café and gym pieces are not typed out by hand: they are all
+clipped corners and derived outlines, and keeping that as literal text means
+recounting every row below any change. `tools/draw-sofa.mjs` and
+`tools/draw-corners.mjs` draw them as shapes and print the arrays to paste
+back in. What makes a chesterfield legible from
 directly above, roughly in order: clipped corners (square ones read as
 joinery however the thing is coloured), three cushions rather than two (two
 is a bench), slim arms (chunky ones put the box back), one row of buttons on
