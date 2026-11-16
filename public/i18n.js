@@ -188,6 +188,7 @@ const STRINGS = {
 
     "item.desk": "Desk",
     "item.chair": "Chair",
+    "item.sofa": "Sofa",
     "item.standdesk": "Sit-stand desk",
     "item.stool": "Sit-stand stool",
     "item.shelf": "Shelf",
@@ -199,6 +200,7 @@ const STRINGS = {
 
     "itemLow.desk": "desk",
     "itemLow.chair": "chair",
+    "itemLow.sofa": "sofa",
     "itemLow.standdesk": "sit-stand desk",
     "itemLow.stool": "sit-stand stool",
     "itemLow.shelf": "shelf",
@@ -391,6 +393,7 @@ const STRINGS = {
 
     "item.desk": "书桌",
     "item.chair": "椅子",
+    "item.sofa": "沙发",
     "item.standdesk": "电动升降桌",
     "item.stool": "站坐两用椅",
     "item.shelf": "书架",
@@ -402,6 +405,7 @@ const STRINGS = {
 
     "itemLow.desk": "书桌",
     "itemLow.chair": "椅子",
+    "itemLow.sofa": "沙发",
     "itemLow.standdesk": "电动升降桌",
     "itemLow.stool": "站坐两用椅",
     "itemLow.shelf": "书架",

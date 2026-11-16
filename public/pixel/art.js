@@ -37,6 +37,8 @@ export const PAL = {
   // upholstery
   c: "#3f4654",
   v: "#5a6474",
+  j: "#3f5f68",
+  J: "#55808c",
 
   // greens
   g: "#4a8a50",
@@ -131,6 +133,38 @@ export const STOOL = [
   "..0sSSSSSSs0....",
   "..0ssssssss0....",
   "...00000000.....",
+];
+
+/**
+ * A two-seat sofa, for the corner of the room nobody works in.
+ *
+ * The shape is what does the work here. Drawn as a closed rectangle it reads
+ * as a sideboard however it is coloured; what makes it a sofa from above is
+ * being open at the front, with the arms running forward past the cushions.
+ * The back is a solid dark slab so the two lit cushions between the arms are
+ * the brightest thing in it.
+ */
+export const SOFA = [
+  "00000000000000000000000000000000",
+  "0JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ0",
+  "0jjjjjjjjjjjjjjjjjjjjjjjjjjjjjj0",
+  "0jjjjjjjjjjjjjjjjjjjjjjjjjjjjjj0",
+  "0jjjjjjjjjjjjjjjjjjjjjjjjjjjjjj0",
+  "0jjj0JJJJJJJJJJ00JJJJJJJJJJ0jjj0",
+  "0jjj0JJJJJJJJJJ00JJJJJJJJJJ0jjj0",
+  "0jjj0JJJJJJJJJJ00JJJJJJJJJJ0jjj0",
+  "0jjj0JJJJJJJJJJ00JJJJJJJJJJ0jjj0",
+  "0jjj0JJJJJJJJJJ00JJJJJJJJJJ0jjj0",
+  "0jjj0JJJJJJJJJJ00JJJJJJJJJJ0jjj0",
+  "0jjj0JJJJJJJJJJ00JJJJJJJJJJ0jjj0",
+  "0jjj0JJJJJJJJJJ00JJJJJJJJJJ0jjj0",
+  "0jjj0JJJJJJJJJJ00JJJJJJJJJJ0jjj0",
+  "0jjj0JJJJJJJJJJ00JJJJJJJJJJ0jjj0",
+  "0jjj0JJJJJJJJJJ00JJJJJJJJJJ0jjj0",
+  "0jjj000000000000000000000000jjj0",
+  "0jjj0......................0jjj0",
+  "0jjj0......................0jjj0",
+  "00000......................00000",
 ];
 
 export const SHELF = [
@@ -533,6 +567,7 @@ export function paintRug(ctx, x, y) {
 export const CATALOGUE = {
   desk: { label: "Desk", art: DESK },
   chair: { label: "Chair", art: CHAIR },
+  sofa: { label: "Sofa", art: SOFA },
   standdesk: { label: "Sit-stand desk", art: STANDDESK },
   stool: { label: "Sit-stand stool", art: STOOL },
   shelf: { label: "Shelf", art: SHELF },
@@ -581,6 +616,7 @@ export const DEFAULT_LAYOUT = [
   { i: "plant", x: 278, y: 146 },
   { i: "shelf", x: 0, y: 160 },
   { i: "shelf", x: 288, y: 160 },
+  { i: "sofa", x: 136, y: 158 },
   { i: "cat", x: 148, y: 128 },
 ];
 

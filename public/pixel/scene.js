@@ -472,15 +472,25 @@ export class PixelRoom {
     ctx.fillRect(0, 0, ROOM_W, ROOM_H);
   }
 
+  /**
+   * Where each name tag goes. `top` is the line the tag's *bottom* sits on —
+   * the CSS pulls it up by its own height — so the tag clears the top of the
+   * head whatever the sprite's height and whatever the scale. Anchoring by
+   * the top edge instead, as this did, put the tag over the character's face:
+   * the gap was a fixed number of room pixels while the tag's height is a
+   * fixed number of screen pixels, so at every scale it overlapped.
+   */
   labelPositions() {
     const out = [];
     for (const [id, p] of this.people) {
+      const icon = iconById(p.icon);
+      const { h } = spriteSize(icon.sprite || FACINGS[0]);
       out.push({
         id,
         name: p.name,
         me: id === this.meId,
         left: Math.round(p.x * this.scale),
-        top: Math.round((p.y - 17) * this.scale),
+        top: Math.round((p.y - h - 2) * this.scale),
       });
     }
     return out;

@@ -102,15 +102,18 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
 - **A room you can walk around.** The stage is a top-down pixel study — desks,
   one of them a sit-stand desk, bookshelves, plants, a rug, a cat — with the
   countdown as a HUD over it.
-  Everyone has a character labelled with their display name and coloured
-  deterministically from their id, so you look the same to everyone. Walk with
+  Everyone has a character labelled with their display name — the tag is hung
+  by its underside from just above the head, so it clears the character at
+  every scale rather than covering their face — and coloured deterministically
+  from their id, so you look the same to everyone. Walk with
   the arrow keys or WASD, or click where you want to go; only the walls stop
   you, so you can stand at a desk rather than beside it. Phase colour becomes
   the room's light: warm lamps on focus, cooler on a break. **Hide the room**
   in the rail swaps back to a plain clock, remembered per browser.
 - **Decorate it together.** *Decorate the room* opens a tray of furniture —
-  desks, chairs, an electric sit-stand desk with the perching stool that goes
-  with it, shelves, plants, windows, a clock, a rug, a cat — and clicking
+  desks, chairs, a two-seat sofa, an electric sit-stand desk with the perching
+  stool that goes with it, shelves, plants, windows, a clock, a rug, a cat —
+  and clicking
   the room places the selected piece on an 8px grid; the eraser takes things
   away. Every change is shared, persisted with the room and covered by the
   same 30-day expiry, so a group's arrangement is still there tomorrow. Undo

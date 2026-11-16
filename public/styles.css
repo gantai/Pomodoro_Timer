@@ -555,9 +555,11 @@ body.paused .time { color: var(--ink-soft); }
 }
 .tag {
   position: absolute;
-  transform: translateX(-50%);
+  /* Lifted by its own height, so `top` is the tag's underside and the head
+     below it is never covered. */
+  transform: translate(-50%, -100%);
   font-size: 10px;
-  line-height: 1.35;
+  line-height: 1.3;
   padding: 1px 5px;
   border-radius: 4px;
   background: rgba(16, 13, 10, 0.72);
