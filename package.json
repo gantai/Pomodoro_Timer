@@ -11,7 +11,8 @@
     "test": "node test/sync.test.mjs",
     "test:expiry": "node test/expiry.test.mjs",
     "test:stale": "node test/stale.test.mjs",
-    "tail": "wrangler tail"
+    "tail": "wrangler tail",
+    "test:lasting": "node test/lasting.test.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.20.0"

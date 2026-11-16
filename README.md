@@ -7,7 +7,7 @@ the link, and everyone's clock counts down together — start, pause, skip and
 timer lengths are all shared, in real time.
 
 Free to use, open to anyone. No accounts, no database, no build step. Runs
-entirely on Cloudflare Workers.
+entirely on Cloudflare Workers. In English and 简体中文.
 
 ## Using it
 
@@ -21,8 +21,9 @@ entirely on Cloudflare Workers.
    lengths. Every screen stays in step, and a chime marks the end of each
    session.
 
-A room keeps its settings for as long as you keep using it, and is deleted
-after 30 days without use. Anyone holding the link can control that room's
+A room keeps its settings, its furniture, its notes and its doodle wall for
+as long as you keep using it, and is deleted after 30 days without use — or
+whenever somebody uses **Delete this room**. Anyone holding the link can control that room's
 timer, so share it the way you would a meeting link.
 
 ## How it works
@@ -117,6 +118,36 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
   furniture behind a confirm. Edits travel one item at a time rather than as
   a whole layout, so two people rearranging at once merge instead of
   overwriting each other.
+- **A message board (留言板).** A panel in the rail, not a dialog behind a
+  button: the notes are simply there, with the latest first and a badge when
+  something arrived since you last looked. They outlive every session in the
+  room and go only when the room does. Anyone can take any note down, exactly
+  as anyone can move the furniture — there are no accounts here, so there is
+  nobody to enforce ownership against, and the activity feed names who did it
+  instead. 280 characters a note, 200 notes a board; at 200 the oldest is
+  pushed off and the feed says so, rather than refusing the post or losing one
+  silently.
+- **A doodle wall (涂鸦墙)** below the room, exactly as wide and drawn at the
+  same pixel size, so it reads as part of the same world. Thirteen pens, three
+  nib sizes and an eraser; everyone draws on it at once. It is a fixed grid of
+  cells rather than a list of strokes, which is what makes "it stays until the
+  room is deleted" a promise worth making: a stroke list grows without limit
+  and would eventually have to start discarding the oldest, while a grid costs
+  the same blank or covered. Only changed cells travel, so two people drawing
+  at once merge instead of overwriting, and a second of drawing is one storage
+  write rather than fifty.
+- **Deleting a room.** The one irreversible thing here, and anyone with the
+  link can reach it, so it asks you to type the room's name and the server
+  checks it again rather than trusting that it did. Everything goes at once —
+  furniture, notes, wall, lengths, log — and everyone still in the room is sent
+  back to the start page. The link keeps working: a room is created by visiting
+  it, so reopening the address gives you a new empty one.
+- **English and 简体中文**, switched from the top bar. The choice is
+  per-person, not per-room: two people in the same room may not read the same
+  language, and a shared setting would mean one of them loses. The activity
+  feed is stored as keys and arguments rather than finished sentences, so the
+  same event reads correctly for an English and a Chinese reader at the same
+  moment.
 - Light and dark, phase and remaining time shown in the tab title. The timer is
   driven by the on-screen controls only — there is deliberately no keyboard
   shortcut, so a stray keypress cannot reset a room everyone is working in.
@@ -124,9 +155,12 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
 ## The interface
 
 Built for a browser window rather than a phone screen: a full-width app shell
-with a top bar (room code and one-click invite link, connection state), a large
-timer stage, and a right rail carrying the people in the room, the timer
-lengths as an always-visible inline panel, and the full activity feed. Phase
+with a top bar (room code and one-click invite link, language, connection
+state), and a stage that reads top-down — phase, controls, progress, then the
+room, then the doodle wall beneath it at the same pixel size. The right rail
+carries the people, a "this room" panel of actions, the message board, the
+timer lengths, and the activity feed folded shut at the bottom, since it is
+useful but rarely urgent. Phase
 colour is the only accent — warm red for focus, green for a short break, blue
 for a long one — so the room's state is readable across an office. The layout
 collapses the rail beneath the stage below 860px, but the desktop window is
@@ -148,6 +182,12 @@ test` also waits out a real 60-second phase to exercise the storage alarm.
 
 `npm run test:expiry` needs no server: it runs the 30-day sweep against a stub
 storage layer, so rooms can be aged arbitrarily without waiting a month.
+
+`npm run test:lasting` checks what a room keeps when everyone goes home — the
+empty-room reset must clear the run and leave the furniture, the board and the
+wall alone — and that deleting really does take all of it. It wants a server
+started with `--var EMPTY_GRACE_MS:1200`, since otherwise the test would have
+to sit out the full 60-second grace window.
 
 ## Deploy to Cloudflare
 
@@ -174,7 +214,9 @@ To serve it from your own domain, add a route in `wrangler.jsonc`:
 src/index.js      Worker: routes /api/room/<id> to the room, everything else to assets
 src/room.js       TimerRoom Durable Object — the shared clock
 src/roomIndex.js  RoomIndex Durable Object — last-use record and the 30-day sweep
+public/i18n.js         English and 简体中文, and the activity feed's sentences
 public/pixel/art.js    palette, sprites-as-text, per-person colours
+public/pixel/wall.js   the doodle wall's grid and codec — shared by both ends
 public/pixel/scene.js  backdrop baking, movement, placement, renderer
 public/index.html Landing page + room app shell
 public/styles.css Layout, theming, phase accent
@@ -184,14 +226,21 @@ public/app.js     WebSocket client, clock-offset correction, rendering, chime
 ## Protocol
 
 Client → server: `start`, `pause`, `reset`, `skip`, `phase`, `settings`,
-`name`, `icon`, `place`, `removeItem`, `resetLayout`, `undoLayout`, `move`,
-`ping`. A display name and icon may also be supplied as `?name=` and `?icon=`
+`name`, `icon`, `place`, `removeItem`, `resetLayout`, `undoLayout`, `note`,
+`unnote`, `paint`, `clearWall`, `undoWall`, `deleteRoom`, `move`, `ping`. A display name and icon may also be supplied as `?name=` and `?icon=`
 on the WebSocket URL, which is how they are set at join time.
 
-Server → client: `welcome` (once, with your identity), `state` (on every
-change), `layout`, `pos`, `replaced`, `notice`, `pong`. Every `state` carries
-the full room snapshot, so a client that misses a message self-heals on the
-next one.
+Server → client: `welcome` (once, with your identity, the furniture, the notes
+and the wall), `state` (on every change), `layout`, `note`, `unnote`,
+`painted`, `wall`, `pos`, `replaced`, `deleted`, `notice`, `pong`. Every
+`state` carries the full room snapshot, so a client that misses a message
+self-heals on the next one.
+
+The notes and the wall live under their own storage keys rather than inside
+the timer's state blob, which is rewritten on every start, pause and phase
+change. Painting is debounced into roughly one write a second and flushed when
+the room empties; the activity log stores `{k, a}` — a key and its arguments —
+so the sentence can be built in each reader's own language.
 
 The furniture layout goes out on its own `layout` message and in the welcome,
 not folded into the timer snapshot: it only changes while someone is

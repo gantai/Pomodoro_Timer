@@ -6,7 +6,14 @@
  * absolute `endsAt` timestamp plus its own clock, and each client renders
  * `endsAt - (now + skew)`. That keeps every screen in lockstep and makes a
  * refresh (or a laptop waking from sleep) land on the correct time.
+ *
+ * It also holds the three things that outlive a session: the furniture, the
+ * message board and the doodle wall. Those are only wiped by the 30-day sweep
+ * or by someone deleting the room outright — the empty-room reset deliberately
+ * leaves them alone, because that resets a run, not a room.
  */
+
+import { WALL_W, WALL_H, PEN_COUNT, blankWall, encodeWall, decodeWall } from "../public/pixel/wall.js";
 
 const PHASES = ["focus", "short", "long"];
 
@@ -23,6 +30,18 @@ const DEFAULT_SETTINGS = {
 
 const MAX_LOG = 12;
 
+/**
+ * The board. Capped because a Durable Object's storage is not free, but set
+ * high enough that a group has to work at it: at 200 a new note pushes the
+ * oldest off and the activity feed says so, which is better than refusing to
+ * post and better than losing one silently.
+ */
+const MAX_NOTES = 200;
+const MAX_NOTE_LEN = 280;
+
+/** At most this many wall cells in one message — a generous brush stroke. */
+const MAX_PAINT = 600;
+
 /** Rooms untouched for this long are wiped — see RoomIndex. */
 const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
 
@@ -32,6 +51,8 @@ const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
  * nobody wants a reload to throw away the focus session they're in.
  */
 const EMPTY_GRACE = 60_000;
+/** Overridable so a test can empty a room in seconds rather than a minute. */
+const emptyGrace = (env) => Number(env.EMPTY_GRACE_MS) || EMPTY_GRACE;
 
 function defaultState() {
   return {
@@ -137,6 +158,24 @@ function cleanName(raw) {
   return name || null;
 }
 
+/**
+ * Notes are typed by strangers and rendered in everyone's browser, so they
+ * are normalised here rather than trusted: control characters out, angle
+ * brackets out as a second line of defence behind the client's escaping,
+ * runs of blank lines collapsed so one note cannot push the rest off screen.
+ */
+function cleanNote(raw) {
+  if (typeof raw !== "string") return null;
+  const text = raw
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\u0000-\u0009\u000B-\u001F\u007F<>]/g, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, MAX_NOTE_LEN);
+  return text || null;
+}
+
 function clampInt(value, min, max, fallback) {
   const n = Math.round(Number(value));
   if (!Number.isFinite(n)) return fallback;
@@ -160,6 +199,12 @@ export class TimerRoom {
     this.ctx = ctx;
     this.env = env;
     this.state = defaultState();
+    // Kept under their own storage keys rather than inside `state`: the timer
+    // blob is rewritten on every start, pause and phase change, and dragging
+    // the notes and the wall through each of those writes would be waste.
+    this.notes = [];
+    this.wall = blankWall();
+    this.wallPrev = null;
     ctx.blockConcurrencyWhile(async () => {
       const stored = await ctx.storage.get("state");
       if (!stored) return;
@@ -171,6 +216,14 @@ export class TimerRoom {
         return;
       }
       this.state = { ...defaultState(), ...stored };
+      const [notes, wall, wallPrev] = await Promise.all([
+        ctx.storage.get("notes"),
+        ctx.storage.get("wall"),
+        ctx.storage.get("wallPrev"),
+      ]);
+      if (Array.isArray(notes)) this.notes = notes;
+      this.wall = (wall && decodeWall(wall)) || blankWall();
+      this.wallPrev = (wallPrev && decodeWall(wallPrev)) || null;
     });
   }
 
@@ -183,6 +236,9 @@ export class TimerRoom {
       for (const ws of this.ctx.getWebSockets()) ws.close(1000, "room expired");
       await this.ctx.storage.deleteAll();
       this.state = defaultState();
+      this.notes = [];
+      this.wall = blankWall();
+      this.wallPrev = null;
       return new Response("expired");
     }
 
@@ -190,7 +246,8 @@ export class TimerRoom {
       return new Response("Expected WebSocket upgrade", { status: 426 });
     }
 
-    this.roomId = request.headers.get("X-Room-Id") || this.roomId;
+    this.roomId = request.headers.get("X-Room-Id") || this.roomId || this.state.roomId;
+    if (this.roomId && this.state.roomId !== this.roomId) this.state.roomId = this.roomId;
     this.state.lastSeen = Date.now();
     this.touchIndex();
     await this.settleEmptyRoom();
@@ -226,13 +283,15 @@ export class TimerRoom {
 
     // Reusing the id keeps their position and their place in the room, so a
     // reload is invisible to everyone else — no "left", no "joined".
-    if (!takeover) this.addLog(`${member.name} joined`);
+    if (!takeover) this.addLog("joined", { name: member.name });
     this.broadcast();
     server.send(
       JSON.stringify({
         type: "welcome",
         you: member,
         layout: this.state.layout,
+        notes: this.notes,
+        wall: encodeWall(this.wall),
         positions: [...(this.positions || new Map())].map(([id, p]) => ({ id, ...p })),
         ...this.snapshot(),
       }),
@@ -287,7 +346,7 @@ export class TimerRoom {
         s.running = true;
         s.endsAt = now + s.remaining;
         await this.ctx.storage.setAlarm(s.endsAt);
-        this.addLog(`${me.name} started the ${this.phaseLabel(s.phase)}`);
+        this.addLog("started", { name: me.name, phase: s.phase });
         break;
       }
 
@@ -297,7 +356,7 @@ export class TimerRoom {
         s.running = false;
         s.endsAt = null;
         await this.ctx.storage.deleteAlarm();
-        this.addLog(`${me.name} paused`);
+        this.addLog("paused", { name: me.name });
         break;
       }
 
@@ -306,14 +365,14 @@ export class TimerRoom {
         s.endsAt = null;
         s.remaining = this.phaseDuration(s.phase);
         await this.ctx.storage.deleteAlarm();
-        this.addLog(`${me.name} reset the timer`);
+        this.addLog("reset", { name: me.name });
         break;
       }
 
       case "skip": {
         const from = s.phase;
         await this.advance(false);
-        this.addLog(`${me.name} skipped the ${this.phaseLabel(from)}`);
+        this.addLog("skipped", { name: me.name, phase: from });
         break;
       }
 
@@ -324,7 +383,7 @@ export class TimerRoom {
         s.endsAt = null;
         s.remaining = this.phaseDuration(s.phase);
         await this.ctx.storage.deleteAlarm();
-        this.addLog(`${me.name} switched to ${this.phaseLabel(s.phase)}`);
+        this.addLog("switched", { name: me.name, phase: s.phase });
         break;
       }
 
@@ -333,7 +392,7 @@ export class TimerRoom {
         if (!next || next === me.name) return;
         const was = me.name;
         ws.serializeAttachment({ ...me, name: next });
-        this.addLog(`${was} is now ${next}`);
+        this.addLog("renamed", { was, name: next });
         break;
       }
 
@@ -351,12 +410,12 @@ export class TimerRoom {
         const item = cleanItem(msg);
         if (!item) return;
         if (s.layout.length >= MAX_ITEMS) {
-          ws.send(JSON.stringify({ type: "notice", text: "The room is full — remove something first" }));
+          ws.send(JSON.stringify({ type: "notice", key: "dec.full" }));
           return;
         }
         s.prevLayout = s.layout.map((o) => ({ ...o }));
         s.layout = [...s.layout, item];
-        this.addLog(`${me.name} added a ${item.i}`);
+        this.addLog("added", { name: me.name, item: item.i });
         await this.save();
         this.broadcastLayout();
         this.broadcast();
@@ -369,7 +428,7 @@ export class TimerRoom {
         const gone = s.layout[k];
         s.prevLayout = s.layout.map((o) => ({ ...o }));
         s.layout = s.layout.filter((_, n) => n !== k);
-        this.addLog(`${me.name} removed a ${gone.i}`);
+        this.addLog("removed", { name: me.name, item: gone.i });
         await this.save();
         this.broadcastLayout();
         this.broadcast();
@@ -379,7 +438,7 @@ export class TimerRoom {
       case "resetLayout": {
         s.prevLayout = s.layout.map((o) => ({ ...o }));
         s.layout = DEFAULT_LAYOUT.map((o) => ({ ...o }));
-        this.addLog(`${me.name} put the room back to its original layout`);
+        this.addLog("layoutReset", { name: me.name });
         await this.save();
         this.broadcastLayout();
         this.broadcast();
@@ -391,10 +450,125 @@ export class TimerRoom {
         const back = s.prevLayout;
         s.prevLayout = s.layout.map((o) => ({ ...o }));
         s.layout = back;
-        this.addLog(`${me.name} undid the last change to the room`);
+        this.addLog("layoutUndo", { name: me.name });
         await this.save();
         this.broadcastLayout();
         this.broadcast();
+        return;
+      }
+
+      // ── the message board ───────────────────────────────────────────────
+      // Notes outlive everyone in the room, which is the whole point of them,
+      // so they are stored rather than relayed. They travel one at a time for
+      // the same reason the furniture does.
+      case "note": {
+        const text = cleanNote(msg.text);
+        if (!text) return;
+        const note = {
+          id: crypto.randomUUID().slice(0, 8),
+          by: me.id,
+          name: me.name,
+          icon: me.icon || "person",
+          text,
+          at: now,
+        };
+        this.notes.push(note);
+        let dropped = null;
+        if (this.notes.length > MAX_NOTES) dropped = this.notes.shift();
+        this.addLog("noted", { name: me.name });
+        await this.saveNotes();
+        this.sendAll({ type: "note", note, dropped: dropped?.id || null });
+        if (dropped) ws.send(JSON.stringify({ type: "notice", key: "board.full" }));
+        this.broadcast();
+        return;
+      }
+
+      // Anyone may take any note down, exactly as anyone may move the
+      // furniture. There are no accounts here, so there is nobody to enforce
+      // ownership against — the activity feed names who did it instead.
+      case "unnote": {
+        const k = this.notes.findIndex((n) => n.id === msg.id);
+        if (k < 0) return;
+        this.notes.splice(k, 1);
+        this.addLog("unnoted", { name: me.name });
+        await this.saveNotes();
+        this.sendAll({ type: "unnote", id: msg.id });
+        this.broadcast();
+        return;
+      }
+
+      // ── the doodle wall ─────────────────────────────────────────────────
+      // Only the cells that changed travel, and the save is debounced: a
+      // drag is dozens of messages a second and each one must not be a
+      // storage write.
+      case "paint": {
+        if (!Array.isArray(msg.cells) || msg.cells.length === 0) return;
+        const seen = (this.lastPaint ||= new WeakMap());
+        if (now - (seen.get(ws) || 0) < 40) return;
+        seen.set(ws, now);
+
+        const applied = [];
+        for (const cell of msg.cells.slice(0, MAX_PAINT)) {
+          if (!Array.isArray(cell) || cell.length !== 3) continue;
+          const [x, y, c] = cell;
+          if (!Number.isInteger(x) || !Number.isInteger(y) || !Number.isInteger(c)) continue;
+          if (x < 0 || y < 0 || x >= WALL_W || y >= WALL_H || c < 0 || c >= PEN_COUNT) continue;
+          const at = y * WALL_W + x;
+          if (this.wall[at] === c) continue;
+          this.wall[at] = c;
+          applied.push([x, y, c]);
+        }
+        if (!applied.length) return;
+        this.scheduleWallSave();
+        this.sendAll({ type: "painted", cells: applied }, ws);
+        return;
+      }
+
+      case "clearWall": {
+        if (this.wall.every((c) => c === 0)) return;
+        this.wallPrev = this.wall.slice();
+        this.wall = blankWall();
+        this.addLog("wallCleared", { name: me.name });
+        await this.saveWall();
+        this.sendAll({ type: "wall", wall: encodeWall(this.wall) });
+        this.broadcast();
+        return;
+      }
+
+      case "undoWall": {
+        if (!this.wallPrev) return;
+        const back = this.wallPrev;
+        this.wallPrev = this.wall.slice();
+        this.wall = back;
+        this.addLog("wallUndo", { name: me.name });
+        await this.saveWall();
+        this.sendAll({ type: "wall", wall: encodeWall(this.wall) });
+        this.broadcast();
+        return;
+      }
+
+      // ── deleting the room ───────────────────────────────────────────────
+      // The one irreversible thing here, and anyone holding the link can
+      // reach it, so the client makes you type the room's name and the
+      // server checks it again rather than trusting that it did.
+      case "deleteRoom": {
+        const id = this.roomId || this.state.roomId;
+        if (!id || msg.confirm !== id) return;
+        this.sendAll({ type: "deleted", by: me.name });
+        for (const other of this.ctx.getWebSockets()) {
+          try {
+            other.close(4002, "room deleted");
+          } catch {
+            /* already gone */
+          }
+        }
+        this.forgetInIndex(id);
+        await this.ctx.storage.deleteAll();
+        this.state = defaultState();
+        this.notes = [];
+        this.wall = blankWall();
+        this.wallPrev = null;
+        this.positions?.clear();
         return;
       }
 
@@ -406,7 +580,7 @@ export class TimerRoom {
         // running we leave the current phase alone and apply it next phase.
         if (!s.running) s.remaining = this.phaseDuration(s.phase);
         if (changed.length) {
-          this.addLog(`${me.name} set ${changed.map((p) => `${this.phaseLabel(p)} to ${next[p]}m`).join(", ")}`);
+          this.addLog("lengths", { name: me.name, parts: changed.map((p) => ({ phase: p, n: next[p] })) });
         }
         break;
       }
@@ -428,7 +602,7 @@ export class TimerRoom {
       return;
     }
     if (me) {
-      this.addLog(`${me.name} left`);
+      this.addLog("left", { name: me.name });
       this.positions?.delete(me.id);
     }
     // The socket is still listed until this handler returns, so exclude it.
@@ -451,6 +625,7 @@ export class TimerRoom {
    */
   async markEmptyIfLast(leaving) {
     if (this.members(leaving).length > 0) return;
+    if (this.wallDirty) await this.saveWall();
     this.state.emptyAt = Date.now();
     await this.ctx.storage.deleteAlarm();
   }
@@ -469,7 +644,7 @@ export class TimerRoom {
     const overran = s.running && s.endsAt !== null && s.endsAt <= Date.now();
     s.emptyAt = null;
 
-    if (idle <= EMPTY_GRACE && !overran) {
+    if (idle <= emptyGrace(this.env) && !overran) {
       // Back within the grace window: resume. `endsAt` is absolute, so the
       // clock reads correctly without any adjustment.
       if (s.running && s.endsAt !== null) await this.ctx.storage.setAlarm(s.endsAt);
@@ -482,7 +657,7 @@ export class TimerRoom {
     s.endsAt = null;
     s.remaining = this.phaseDuration("focus");
     await this.ctx.storage.deleteAlarm();
-    this.addLog("Everyone left — timer reset and ready to start");
+    this.addLog("allLeft");
   }
 
   async alarm() {
@@ -525,7 +700,7 @@ export class TimerRoom {
     }
 
     if (elapsed) {
-      this.addLog(`${this.phaseLabel(finishedPhase)} finished — ${this.phaseLabel(s.phase)} is up next`);
+      this.addLog("finished", { from: finishedPhase, to: s.phase });
     }
     return finishedPhase;
   }
@@ -609,16 +784,71 @@ export class TimerRoom {
     }
   }
 
+  /** Send one payload to everyone still really in the room. */
+  sendAll(payload, except) {
+    const body = JSON.stringify(payload);
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === except || this.isZombie(ws)) continue;
+      try {
+        ws.send(body);
+      } catch {
+        /* going away; the close handler tidies up */
+      }
+    }
+  }
+
+  saveNotes() {
+    return this.ctx.storage.put("notes", this.notes);
+  }
+
+  async saveWall() {
+    this.wallDirty = false;
+    await this.ctx.storage.put("wall", encodeWall(this.wall));
+    if (this.wallPrev) await this.ctx.storage.put("wallPrev", encodeWall(this.wallPrev));
+  }
+
+  /**
+   * Drawing is a stream of small edits; writing storage on each one would be
+   * absurd. Coalesce a second of drawing into one write, and hold the object
+   * awake for it with waitUntil so a hibernation cannot swallow the last
+   * stroke. Worst case a crash costs the final second of a doodle.
+   */
+  scheduleWallSave() {
+    this.wallDirty = true;
+    if (this.wallSaving) return;
+    this.wallSaving = true;
+    this.ctx.waitUntil(
+      new Promise((done) => setTimeout(done, 1000)).then(async () => {
+        this.wallSaving = false;
+        if (this.wallDirty) await this.saveWall();
+      }),
+    );
+  }
+
+  /** Drop a deleted room from the index, so the sweep has nothing to find. */
+  forgetInIndex(id) {
+    const stub = this.env.INDEX.get(this.env.INDEX.idFromName("v1"));
+    this.ctx.waitUntil(
+      stub.fetch("https://index/forget", { method: "POST", body: JSON.stringify({ id }) }).catch(() => {
+        // The sweep drops entries whose room is already gone, so a missed
+        // forget costs an orphaned timestamp for up to thirty days.
+      }),
+    );
+  }
+
   phaseDuration(phase) {
     return this.state.settings[phase] * 60_000;
   }
 
-  phaseLabel(phase) {
-    return phase === "focus" ? "focus" : phase === "short" ? "short break" : "long break";
-  }
-
-  addLog(text) {
-    this.state.log.unshift({ text, ts: Date.now() });
+  /**
+   * One entry = a key plus its arguments, never a finished sentence. The
+   * sentence is built in the reader's own language when it is rendered, so
+   * the same event reads correctly for an English and a Chinese reader
+   * sitting in the same room. Entries written before this change carry
+   * `text` instead and are shown as they were.
+   */
+  addLog(k, a) {
+    this.state.log.unshift(a ? { k, a, ts: Date.now() } : { k, ts: Date.now() });
     this.state.log = this.state.log.slice(0, MAX_LOG);
   }
 
@@ -659,7 +889,7 @@ export class TimerRoom {
           /* already closing */
         }
         this.positions?.delete(att.id);
-        this.addLog(`${att.name} dropped out`);
+        this.addLog("dropped", { name: att.name });
       }
       try {
         ws.close(4001, "no sign of life");

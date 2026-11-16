@@ -3,7 +3,7 @@
  * used, so rooms untouched for 30 days can be cleaned up.
  *
  * It is deliberately write-only from the outside: there is no endpoint that
- * lists rooms. A public list would let anyone enumerate live rooms and join
+ * lists rooms, only ones that record or drop a single id you already know. A public list would let anyone enumerate live rooms and join
  * (or reset) a group's timer, so "your rooms" is kept per-browser instead.
  *
  * The pruning alarm lives here rather than in TimerRoom because a Durable
@@ -33,6 +33,15 @@ export class RoomIndex {
           await this.ctx.storage.setAlarm(Date.now() + PRUNE_INTERVAL);
         }
       }
+      return new Response("ok");
+    }
+
+    // A room that deleted itself: drop its timestamp so the sweep has
+    // nothing to chase. Still write-only from outside — this removes an
+    // entry, it never reveals one.
+    if (url.pathname === "/forget" && request.method === "POST") {
+      const { id } = await request.json();
+      if (typeof id === "string" && ROOM_ID_RE.test(id)) await this.ctx.storage.delete(`room:${id}`);
       return new Response("ok");
     }
 

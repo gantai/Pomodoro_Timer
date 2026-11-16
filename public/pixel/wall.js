@@ -7,11 +7,15 @@
  * promise keepable. It also merges the way the furniture does — two people
  * drawing at once touch different cells and both edits land.
  *
+ * The grid is exactly as wide as the pixel room and shares its scale, so the
+ * wall sits beneath the room with pixels the same size — part of the same
+ * world rather than a widget parked underneath.
+ *
  * This module is served to the browser and also bundled into the Worker, so
  * the codec is written once and the two ends cannot drift apart.
  */
 
-export const WALL_W = 128;
+export const WALL_W = 320;
 export const WALL_H = 72;
 export const WALL_CELLS = WALL_W * WALL_H;
 

@@ -179,11 +179,23 @@ export class PixelRoom {
 
   /* --- sizing: integer scale only, so pixels stay square --- */
 
+  /**
+   * `extraH` is logical height stacked under the room that has to share the
+   * same whole-number scale — the doodle wall. Without it the room would take
+   * the whole window and push the wall off the bottom.
+   */
+  setExtraHeight(h) {
+    this.extraH = h || 0;
+    this.resize();
+  }
+
   resize() {
     const host = this.canvas.closest(".scene") || this.canvas.parentElement;
     const avail = host.getBoundingClientRect().width || window.innerWidth;
-    const budget = Math.max(ROOM_H, window.innerHeight - 300);
-    const scale = Math.max(1, Math.floor(Math.min(avail / ROOM_W, budget / ROOM_H)));
+    // Room for the bar, the phases, the controls, the progress and the hints.
+    const budget = Math.max(ROOM_H, window.innerHeight - 340);
+    const stack = ROOM_H + (this.extraH || 0);
+    const scale = Math.max(1, Math.floor(Math.min(avail / ROOM_W, budget / stack)));
     this.scale = scale;
     this.canvas.width = ROOM_W;
     this.canvas.height = ROOM_H;

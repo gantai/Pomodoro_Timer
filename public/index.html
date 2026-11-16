@@ -15,39 +15,40 @@
       <header class="topbar">
         <div class="wordmark">Pomo<span>Together</span></div>
         <nav class="topbar__right">
-          <a class="link" href="https://github.com/gantai/Pomodoro_Timer" target="_blank" rel="noopener">Source</a>
+          <div class="langpick" id="langLanding" role="radiogroup" aria-label="Language"></div>
+          <a class="link" href="https://github.com/gantai/Pomodoro_Timer" target="_blank" rel="noopener" data-i18n="app.source">Source</a>
         </nav>
       </header>
 
       <section class="hero">
         <div class="hero__copy">
-          <h1>Run the same Pomodoro, with everyone at once.</h1>
-          <p class="lede">
+          <h1 data-i18n="land.title">Run the same Pomodoro, with everyone at once.</h1>
+          <p class="lede" data-i18n="land.lede">
             Create a room, send the link, and every screen counts down together.
             Anyone can start, pause or change the lengths — the clock lives on
             the server, so nobody drifts out of step.
           </p>
           <div class="hero__actions">
-            <button id="create" class="btn btn--primary btn--lg">Create a room</button>
+            <button id="create" class="btn btn--primary btn--lg" data-i18n="land.create">Create a room</button>
             <form id="joinForm" class="join">
-              <input id="joinCode" class="input" type="text" placeholder="or name one, e.g. standup" autocomplete="off" spellcheck="false" />
-              <button class="btn btn--lg" type="submit">Open</button>
+              <input id="joinCode" class="input" type="text" data-i18n-ph="land.placeholder" placeholder="or name one, e.g. standup" autocomplete="off" spellcheck="false" />
+              <button class="btn btn--lg" type="submit" data-i18n="land.open">Open</button>
             </form>
           </div>
-          <p class="fineprint">No sign-up, no accounts, nothing to install. Naming a room gives your group a link worth bookmarking — reopen it tomorrow and your settings are still there.</p>
+          <p class="fineprint" data-i18n="land.fineprint">No sign-up, no accounts, nothing to install. Naming a room gives your group a link worth bookmarking — reopen it tomorrow and your settings are still there.</p>
 
           <section class="recent" id="recent" hidden>
-            <h2 class="recent__title">Your rooms</h2>
+            <h2 class="recent__title" data-i18n="land.yourRooms">Your rooms</h2>
             <ul class="recent__list" id="recentList"></ul>
-            <p class="fineprint">Remembered on this device only. A room is deleted after 30 days without use.</p>
+            <p class="fineprint" data-i18n="land.roomsNote">Remembered on this device only. A room is deleted after 30 days without use.</p>
           </section>
         </div>
 
         <div class="hero__demo" aria-hidden="true">
           <div class="demo">
-            <div class="demo__head"><span class="dot live"></span> 4 here</div>
+            <div class="demo__head"><span class="dot live"></span> <span data-i18n="land.demoHere" data-i18n-p-n="4">4 here</span></div>
             <div class="demo__time">24:13</div>
-            <div class="demo__meta">Focus · round 2 of 4</div>
+            <div class="demo__meta" data-i18n="land.demoMeta">Focus · round 2 of 4</div>
             <div class="demo__track"><i></i></div>
             <div class="demo__who"><span>Guest 1</span><span>Guest 2</span><span>Guest 3</span><span>Guest 4</span></div>
           </div>
@@ -56,20 +57,20 @@
 
       <section class="steps">
         <div class="step">
-          <b>1 · Create</b>
-          <p>One click makes a room with its own address, like <code>/r/quiet-ember-42</code>.</p>
+          <b data-i18n="land.step1">1 · Create</b>
+          <p data-i18n-html="land.step1b">One click makes a room with its own address, like <code>/r/quiet-ember-42</code>.</p>
         </div>
         <div class="step">
-          <b>2 · Share the link</b>
-          <p>Anyone who opens it joins instantly. No names to register, no invites to accept.</p>
+          <b data-i18n="land.step2">2 · Share the link</b>
+          <p data-i18n="land.step2b">Anyone who opens it joins instantly. No names to register, no invites to accept.</p>
         </div>
         <div class="step">
-          <b>3 · Work in step</b>
-          <p>Start, pause, skip and the lengths are shared by the room, and a chime marks the end of every session — work or rest.</p>
+          <b data-i18n="land.step3">3 · Work in step</b>
+          <p data-i18n="land.step3b">Start, pause, skip and the lengths are shared by the room, and a chime marks the end of every session — work or rest.</p>
         </div>
       </section>
 
-      <footer class="sitefoot">Runs on Cloudflare Workers · one Durable Object per room</footer>
+      <footer class="sitefoot" data-i18n="land.foot">Runs on Cloudflare Workers · one Durable Object per room</footer>
     </div>
 
     <!-- ══════════ Room ══════════ -->
@@ -78,14 +79,15 @@
         <div class="topbar__left">
           <div class="wordmark wordmark--sm">Pomo<span>Together</span></div>
           <span class="sep"></span>
-          <button id="roomCode" class="roomcode" title="Copy the invite link">
+          <button id="roomCode" class="roomcode" data-i18n-title="ctl.copy" title="Copy the invite link">
             <span id="roomCodeText">—</span>
             <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a1 1 0 0 1 1-1h9"/></svg>
-            <em>Copy invite link</em>
+            <em data-i18n="ctl.copy">Copy invite link</em>
           </button>
         </div>
         <div class="topbar__right">
-          <span class="conn"><span class="dot" id="presenceDot"></span><span id="connStatus">connecting…</span></span>
+          <div class="langpick" id="langRoom" role="radiogroup" aria-label="Language"></div>
+          <span class="conn"><span class="dot" id="presenceDot"></span><span id="connStatus" data-i18n="conn.connecting">connecting…</span></span>
         </div>
       </header>
 
@@ -93,10 +95,22 @@
         <!-- Stage -->
         <main class="stage" id="stage">
           <nav class="phases" id="phases" aria-label="Timer phase">
-            <button class="phase" data-phase="focus">Focus</button>
-            <button class="phase" data-phase="short">Short break</button>
-            <button class="phase" data-phase="long">Long break</button>
+            <button class="phase" data-phase="focus" data-i18n="phase.focus">Focus</button>
+            <button class="phase" data-phase="short" data-i18n="phase.short">Short break</button>
+            <button class="phase" data-phase="long" data-i18n="phase.long">Long break</button>
           </nav>
+
+          <!-- The timer's own controls sit above the room, so the whole timer
+               cluster reads top-down: phase, buttons, progress. -->
+          <div class="timerbar">
+            <div class="controls">
+              <button id="primary" class="btn btn--primary btn--lg btn--primary-wide" data-i18n="ctl.start">Start</button>
+              <button id="skip" class="btn btn--lg" data-i18n="ctl.skip" data-i18n-title="ctl.skipTitle" title="Jump to the next phase">Skip</button>
+              <button id="reset" class="btn btn--lg" data-i18n="ctl.reset" data-i18n-title="ctl.resetTitle" title="Restart this phase">Reset</button>
+            </div>
+            <div class="track"><div id="progress" class="track__fill"></div></div>
+            <p class="hint" data-i18n="ctl.shared">Start, pause and skip are shared — everyone in the room sees them</p>
+          </div>
 
           <div class="scene" id="scene">
             <div class="scene__frame" id="sceneFrame">
@@ -107,82 +121,124 @@
                 <div id="meta" class="meta">—</div>
               </div>
             </div>
-            <p class="hint hint--move" id="moveHint">Arrow keys or <kbd>WASD</kbd> to walk · or click where you want to go</p>
+            <p class="hint hint--move" id="moveHint" data-i18n-html="room.moveHint">Arrow keys or <kbd>WASD</kbd> to walk · or click where you want to go</p>
 
             <div class="decorate" id="decorate" hidden>
               <div class="decorate__items" id="palette" role="radiogroup" aria-label="Furniture"></div>
               <div class="decorate__acts">
-                <button id="undoLayout" class="btn" type="button">Undo</button>
-                <button id="resetLayout" class="btn" type="button">Reset room</button>
-                <button id="doneDecorating" class="btn btn--primary" type="button">Done</button>
+                <button id="undoLayout" class="btn" type="button" data-i18n="dec.undo">Undo</button>
+                <button id="resetLayout" class="btn" type="button" data-i18n="dec.reset">Reset room</button>
+                <button id="doneDecorating" class="btn btn--primary" type="button" data-i18n="dec.done">Done</button>
               </div>
-              <p class="fineprint">Click the room to place, or pick the eraser and click something to take it away. Everyone in the room sees the change.</p>
+              <p class="fineprint" data-i18n="dec.hint">Click the room to place, or pick the eraser and click something to take it away. Everyone in the room sees the change.</p>
             </div>
           </div>
+
+          <!-- 涂鸦墙 — same width as the room, same pixel size, directly below it -->
+          <section class="wallstrip" id="wallStrip">
+            <p class="wallstrip__head">
+              <span data-i18n="wall.title">Doodle wall</span>
+              <span class="spacer"></span>
+              <button id="undoWall" class="linkbtn" type="button" data-i18n="wall.undo" hidden>Undo clear</button>
+              <button id="clearWall" class="linkbtn" type="button" data-i18n="wall.clear">Clear the wall</button>
+            </p>
+            <canvas id="wallCanvas" class="wallcanvas" width="320" height="72" aria-label="The group's doodle wall"></canvas>
+            <div class="pens" id="pens"></div>
+          </section>
 
           <div class="plainclock" id="plainClock" hidden>
             <div id="timePlain" class="time">--:--</div>
             <div id="metaPlain" class="meta">—</div>
           </div>
-
-          <div class="track"><div id="progress" class="track__fill"></div></div>
-
-          <div class="controls">
-            <button id="primary" class="btn btn--primary btn--lg btn--primary-wide">Start</button>
-            <button id="skip" class="btn btn--lg" title="Jump to the next phase">Skip</button>
-            <button id="reset" class="btn btn--lg" title="Restart this phase">Reset</button>
-          </div>
-          <p class="hint">Start, pause and skip are shared — everyone in the room sees them</p>
         </main>
 
         <!-- Right rail -->
         <aside class="rail">
           <section class="panel">
-            <h2 class="panel__title">In this room <span id="presenceText" class="count">—</span></h2>
+            <h2 class="panel__title"><span data-i18n="rail.here">In this room</span> <span id="presenceText" class="count">—</span></h2>
             <div id="members" class="members"></div>
-            <button id="rename" class="linkbtn" type="button">Change your name or icon</button>
-            <button id="toggleRoom" class="linkbtn" type="button">Hide the room</button>
-            <button id="decorateBtn" class="linkbtn" type="button">Decorate the room</button>
+            <button id="rename" class="linkbtn" type="button" data-i18n="rail.rename">Change your name or icon</button>
           </section>
 
           <section class="panel">
-            <h2 class="panel__title">Timer lengths</h2>
-            <div class="presets" id="presets">
-              <button class="chip" data-preset="25,5,15,4">Classic 25/5/15</button>
-              <button class="chip" data-preset="50,10,30,2">Deep 50/10/30</button>
-              <button class="chip" data-preset="15,3,15,4">Sprint 15/3/15</button>
+            <h2 class="panel__title" data-i18n="rail.thisRoom">This room</h2>
+            <div class="roomacts">
+              <button id="decorateBtn" class="roomact" type="button" aria-pressed="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18M5 20v-7h5v7M14 20v-11h5v11"/></svg>
+                <span data-i18n="rail.decorate">Decorate</span>
+              </button>
+              <button id="wallBtn" class="roomact" type="button" aria-pressed="true">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17c3-1 4-9 8-9s3 6 6 6 3-2 4-3"/><path d="M4 21h16"/></svg>
+                <span data-i18n="rail.wall">Doodle wall</span>
+              </button>
+              <button id="toggleRoom" class="roomact" type="button" aria-pressed="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><path d="m4 20 16-16"/></svg>
+                <span id="toggleRoomLabel" data-i18n="rail.hideRoom">Hide room</span>
+              </button>
             </div>
-            <label class="field">
-              <span>Focus</span>
-              <span class="field__ctl"><input id="setFocus" class="input input--num" type="number" min="1" max="180" step="1" /><em>min</em></span>
-            </label>
-            <label class="field">
-              <span>Short break</span>
-              <span class="field__ctl"><input id="setShort" class="input input--num" type="number" min="1" max="180" step="1" /><em>min</em></span>
-            </label>
-            <label class="field">
-              <span>Long break</span>
-              <span class="field__ctl"><input id="setLong" class="input input--num" type="number" min="1" max="180" step="1" /><em>min</em></span>
-            </label>
-            <label class="field">
-              <span>Long break every</span>
-              <span class="field__ctl"><input id="setRounds" class="input input--num" type="number" min="1" max="12" step="1" /><em>rounds</em></span>
-            </label>
-            <label class="field field--toggle">
-              <span>Auto-start next phase</span>
-              <input id="setAuto" type="checkbox" class="switch" />
-            </label>
-            <label class="field field--toggle" title="Plays for everyone with sound on, at the end of both work and rest">
-              <span>Chime at the end of a session</span>
-              <input id="setSound" type="checkbox" class="switch" />
-            </label>
-            <p class="fineprint">Applies to everyone. A new length takes effect next phase if the clock is already running.</p>
+            <p class="fineprint" data-i18n="rail.keepNote">Furniture, notes and the wall all stay until the room is deleted.</p>
+            <button id="deleteBtn" class="linkbtn linkbtn--danger" type="button" data-i18n="rail.delete">Delete this room…</button>
           </section>
 
-          <section class="panel panel--grow">
-            <h2 class="panel__title">Activity</h2>
-            <ol id="activity" class="activity"></ol>
+          <!-- 留言板 -->
+          <section class="panel panel--board">
+            <h2 class="panel__title">
+              <span data-i18n="board.title">Message board</span>
+              <span class="pill" id="boardNew" hidden></span>
+            </h2>
+            <ul class="board__list" id="boardList"></ul>
+            <div class="board__compose">
+              <textarea id="noteInput" maxlength="280" rows="2" data-i18n-ph="board.placeholder" placeholder="Leave a note for the room…"></textarea>
+              <div class="board__row">
+                <p class="fineprint" id="boardCount"></p>
+                <button id="postNote" class="btn btn--primary" type="button" data-i18n="board.post">Pin it</button>
+              </div>
+            </div>
           </section>
+
+          <section class="panel">
+            <h2 class="panel__title" data-i18n="set.title">Timer lengths</h2>
+            <div class="presets" id="presets">
+              <button class="chip" data-preset="25,5,15,4" data-i18n="set.classic">Classic 25/5/15</button>
+              <button class="chip" data-preset="50,10,30,2" data-i18n="set.deep">Deep 50/10/30</button>
+              <button class="chip" data-preset="15,3,15,4" data-i18n="set.sprint">Sprint 15/3/15</button>
+            </div>
+            <label class="field">
+              <span data-i18n="set.focus">Focus</span>
+              <span class="field__ctl"><input id="setFocus" class="input input--num" type="number" min="1" max="180" step="1" /><em data-i18n="set.min">min</em></span>
+            </label>
+            <label class="field">
+              <span data-i18n="set.short">Short break</span>
+              <span class="field__ctl"><input id="setShort" class="input input--num" type="number" min="1" max="180" step="1" /><em data-i18n="set.min">min</em></span>
+            </label>
+            <label class="field">
+              <span data-i18n="set.long">Long break</span>
+              <span class="field__ctl"><input id="setLong" class="input input--num" type="number" min="1" max="180" step="1" /><em data-i18n="set.min">min</em></span>
+            </label>
+            <label class="field">
+              <span data-i18n="set.rounds">Long break every</span>
+              <span class="field__ctl"><input id="setRounds" class="input input--num" type="number" min="1" max="12" step="1" /><em data-i18n="set.roundsUnit">rounds</em></span>
+            </label>
+            <label class="field field--toggle">
+              <span data-i18n="set.auto">Auto-start next phase</span>
+              <input id="setAuto" type="checkbox" class="switch" />
+            </label>
+            <label class="field field--toggle" data-i18n-title="set.soundTitle" title="Plays for everyone with sound on, at the end of both work and rest">
+              <span data-i18n="set.sound">Chime at the end of a session</span>
+              <input id="setSound" type="checkbox" class="switch" />
+            </label>
+            <p class="fineprint" data-i18n="set.note">Applies to everyone. A new length takes effect next phase if the clock is already running.</p>
+          </section>
+
+          <!-- Activity, demoted to a fold: useful, rarely urgent. -->
+          <details class="fold" id="activityFold">
+            <summary>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+              <span data-i18n="act.title">Activity</span>
+              <span class="fold__peek" id="activityPeek"></span>
+            </summary>
+            <ol id="activity" class="activity"></ol>
+          </details>
         </aside>
       </div>
     </div>
@@ -190,14 +246,29 @@
     <!-- Name gate: shown on a first join, and again on "Change your name" -->
     <div id="nameGate" class="gate" hidden>
       <form class="gate__panel" id="nameForm" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
-        <h2 id="gateTitle" class="gate__title">What should we call you?</h2>
-        <p class="gate__note">Everyone in <b id="gateRoom">this room</b> sees this name and icon next to what you do.</p>
-        <input id="nameInput" class="input gate__input" type="text" maxlength="24" placeholder="Your name" autocomplete="nickname" spellcheck="false" />
-        <p class="gate__label">Pick your icon</p>
+        <h2 id="gateTitle" class="gate__title" data-i18n="gate.who">Who are you?</h2>
+        <p class="gate__note" id="gateNote"></p>
+        <input id="nameInput" class="input gate__input" type="text" maxlength="24" data-i18n-ph="gate.name" placeholder="Your name" autocomplete="nickname" spellcheck="false" />
+        <p class="gate__label" data-i18n="gate.pickIcon">Pick your icon</p>
         <div class="icons" id="iconPicker" role="radiogroup" aria-label="Choose an icon"></div>
         <div class="gate__actions">
-          <button class="btn btn--primary btn--lg" type="submit">Join the room</button>
-          <button class="btn btn--lg" type="button" id="nameSkip">Stay anonymous</button>
+          <button class="btn btn--primary btn--lg" type="submit" data-i18n="gate.join">Join the room</button>
+          <button class="btn btn--lg" type="button" id="nameSkip" data-i18n="gate.anon">Stay anonymous</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Deleting a room: the one irreversible thing here. -->
+    <div id="deleteGate" class="gate" hidden>
+      <form class="gate__panel" id="deleteForm" role="dialog" aria-modal="true" aria-labelledby="delTitle">
+        <h2 id="delTitle" class="gate__title" data-i18n="del.title">Delete this room?</h2>
+        <p class="gate__note" id="delBody"></p>
+        <p class="gate__note" data-i18n="del.link">The link itself keeps working — opening it again creates a new, empty room with the same name.</p>
+        <p class="gate__label" id="delConfirmLabel"></p>
+        <input id="delInput" class="input gate__input" type="text" autocomplete="off" spellcheck="false" />
+        <div class="gate__actions">
+          <button class="btn btn--lg" type="button" id="delCancel" data-i18n="del.keep">Keep the room</button>
+          <button class="btn btn--lg btn--danger" type="submit" data-i18n="del.go">Delete it</button>
         </div>
       </form>
     </div>

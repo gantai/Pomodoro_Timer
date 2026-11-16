@@ -3,7 +3,9 @@
    offset between this device's clock and the room's. */
 
 import { PixelRoom } from "./pixel/scene.js";
-import { ICONS, ICON_IDS, iconDataURL, CATALOGUE, ITEM_IDS, itemSize, paintItem } from "./pixel/art.js";
+import { ICONS, ICON_IDS, iconDataURL, ITEM_IDS, itemSize, paintItem } from "./pixel/art.js";
+import { WALL_W, WALL_H, WALL_PENS, PEN_COUNT, blankWall, decodeWall } from "./pixel/wall.js";
+import { LANGS, t, ago, logLine, lang, setLang, initLang } from "./i18n.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -17,6 +19,8 @@ const NOUNS = [
   "sparrow", "thicket", "willow", "beacon", "cedar", "dune", "falcon", "glade",
   "hollow", "isle", "juniper", "kelp", "marsh", "nectar", "orchid", "trout",
 ];
+
+const MAX_NOTES = 200;
 
 function newRoomId() {
   const pick = (a) => a[Math.floor(Math.random() * a.length)];
@@ -34,7 +38,61 @@ function normalizeRoomId(raw) {
   return /^[a-z0-9-]{3,48}$/.test(id) ? id : null;
 }
 
-const PHASE_NAME = { focus: "Focus", short: "Short break", long: "Long break" };
+/* ---------------- language ----------------
+   A per-person choice, not a room one: two people in the same room may not
+   read the same language, and a shared setting would mean one of them loses.
+   Changing it repaints in place — no reload, nothing lost. */
+
+function applyI18n(root = document) {
+  for (const el of root.querySelectorAll("[data-i18n]")) {
+    const params = {};
+    for (const { name, value } of el.attributes) {
+      if (name.startsWith("data-i18n-p-")) params[name.slice(12)] = value;
+    }
+    el.textContent = t(el.dataset.i18n, params);
+  }
+  // Only for strings whose translation legitimately carries markup (a <kbd>,
+  // a <code>, a bolded room name). Every one of them is ours, from i18n.js.
+  for (const el of root.querySelectorAll("[data-i18n-html]")) {
+    el.innerHTML = t(el.dataset.i18nHtml);
+  }
+  for (const el of root.querySelectorAll("[data-i18n-ph]")) {
+    el.placeholder = t(el.dataset.i18nPh);
+  }
+  for (const el of root.querySelectorAll("[data-i18n-title]")) {
+    el.title = t(el.dataset.i18nTitle);
+  }
+  document.title = room ? document.title : t("app.tagline");
+}
+
+function buildLangPickers() {
+  for (const host of [$("langLanding"), $("langRoom")]) {
+    if (!host) continue;
+    host.innerHTML = LANGS.map(
+      (l) =>
+        `<button type="button" role="radio" data-lang="${l.id}" aria-checked="${l.id === lang()}" title="${l.name}">${l.label}</button>`,
+    ).join("");
+    for (const b of host.children) {
+      b.onclick = () => chooseLang(b.dataset.lang);
+    }
+  }
+}
+
+function markLang() {
+  for (const host of [$("langLanding"), $("langRoom")]) {
+    for (const b of host?.children || []) b.setAttribute("aria-checked", String(b.dataset.lang === lang()));
+  }
+}
+
+function chooseLang(id) {
+  if (id === lang()) return;
+  setLang(id);
+  markLang();
+  applyI18n();
+  thumbs.clear();
+  renderRooms();
+  room?.relabel();
+}
 
 /* ---------------- remembered rooms ----------------
    Kept in this browser rather than on the server: a public list of live rooms
@@ -88,7 +146,7 @@ function renderRooms() {
       (r) => `<li class="recent__item">
         <a href="/r/${encodeURIComponent(r.id)}" data-room="${esc(r.id)}">${esc(r.id)}</a>
         <span>${ago(r.at)}</span>
-        <button class="forget" data-forget="${esc(r.id)}" aria-label="Forget ${esc(r.id)}" title="Remove from this list">&times;</button>
+        <button class="forget" data-forget="${esc(r.id)}" aria-label="${esc(t("land.forget"))}" title="${esc(t("land.forget"))}">&times;</button>
       </li>`,
     )
     .join("");
@@ -109,13 +167,13 @@ function renderRooms() {
 function showLanding() {
   $("landing").hidden = false;
   $("room").hidden = true;
-  document.title = "Pomo Together — a shared Pomodoro timer";
+  document.title = t("app.tagline");
 
   $("create").onclick = () => go(newRoomId());
   $("joinForm").onsubmit = (e) => {
     e.preventDefault();
     const id = normalizeRoomId($("joinCode").value);
-    if (!id) return toast("Use letters, numbers and hyphens — at least 3 characters");
+    if (!id) return toast(t("land.badCode"));
     go(id);
   };
   renderRooms();
@@ -158,21 +216,24 @@ const ASKED_KEY = "pomo.nameAsked";
 const ICON_KEY = "pomo.icon";
 const MAX_NAME = 24;
 
-function storedIcon() {
+const readPref = (key, fallback = null) => {
   try {
-    const v = localStorage.getItem(ICON_KEY);
-    return ICON_IDS.includes(v) ? v : "person";
+    return localStorage.getItem(key) ?? fallback;
   } catch {
-    return "person";
+    return fallback;
   }
-}
+};
+const writePref = (key, value) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* private browsing — the choice just won't survive a reload */
+  }
+};
 
-function rememberIcon(icon) {
-  try {
-    localStorage.setItem(ICON_KEY, icon);
-  } catch {
-    /* fine — it just won't survive a reload */
-  }
+function storedIcon() {
+  const v = readPref(ICON_KEY);
+  return ICON_IDS.includes(v) ? v : "person";
 }
 
 function cleanName(raw) {
@@ -183,50 +244,18 @@ function cleanName(raw) {
     .slice(0, MAX_NAME);
 }
 
-function storedName() {
-  try {
-    return cleanName(localStorage.getItem(NAME_KEY));
-  } catch {
-    return "";
-  }
-}
+const storedName = () => cleanName(readPref(NAME_KEY, ""));
+const alreadyAsked = () => readPref(ASKED_KEY) === "1";
 
 function rememberName(name) {
-  try {
-    localStorage.setItem(NAME_KEY, name);
-    localStorage.setItem(ASKED_KEY, "1");
-  } catch {
-    /* private browsing — the name still applies for this session */
-  }
-}
-
-function alreadyAsked() {
-  try {
-    return localStorage.getItem(ASKED_KEY) === "1";
-  } catch {
-    return false;
-  }
+  writePref(NAME_KEY, name);
+  writePref(ASKED_KEY, "1");
 }
 
 /* Some people want the room; some want a clock and nothing else. Remembered
    per browser, like the name. */
 const ROOM_PREF_KEY = "pomo.hideRoom";
-
-function roomHiddenPref() {
-  try {
-    return localStorage.getItem(ROOM_PREF_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function setRoomHiddenPref(hidden) {
-  try {
-    localStorage.setItem(ROOM_PREF_KEY, hidden ? "1" : "0");
-  } catch {
-    /* fine — the choice just won't survive a reload */
-  }
-}
+const WALL_PREF_KEY = "pomo.hideWall";
 
 /**
  * Resolve the name and icon to join with. Resolves to {name, icon}; an empty
@@ -240,23 +269,25 @@ function askIdentity(roomId, force = false) {
   if (!force && (known || alreadyAsked())) return Promise.resolve({ name: known, icon });
 
   const gate = $("nameGate");
-  $("gateRoom").textContent = roomId;
-  $("gateTitle").textContent = force ? "Change your name or icon" : "Who are you?";
+  $("gateNote").innerHTML = t("gate.note", { room: esc(roomId) });
+  $("gateTitle").textContent = force ? t("gate.change") : t("gate.who");
   $("nameInput").value = known;
 
-  // Build the picker once; repaint the selection each time it opens.
+  // Build the picker once; repaint the selection and the labels each time.
   const picker = $("iconPicker");
   if (!picker.childElementCount) {
     picker.innerHTML = ICONS.map(
       (i) =>
-        `<button type="button" class="icon" role="radio" data-icon="${i.id}" aria-checked="false" title="${i.label}">
-           <img src="${iconDataURL(i.id)}" alt="" /><span>${i.label}</span>
+        `<button type="button" class="icon" role="radio" data-icon="${i.id}" aria-checked="false">
+           <img src="${iconDataURL(i.id)}" alt="" /><span></span>
          </button>`,
     ).join("");
   }
   const mark = () => {
     for (const b of picker.children) {
       b.setAttribute("aria-checked", String(b.dataset.icon === icon));
+      b.title = t(`icon.${b.dataset.icon}`);
+      b.querySelector("span").textContent = t(`icon.${b.dataset.icon}`);
     }
   };
   for (const b of picker.children) {
@@ -277,7 +308,7 @@ function askIdentity(roomId, force = false) {
       $("nameForm").onsubmit = null;
       $("nameSkip").onclick = null;
       rememberName(name);
-      rememberIcon(icon);
+      writePref(ICON_KEY, icon);
       resolve({ name, icon });
     };
     $("nameForm").onsubmit = (e) => {
@@ -320,10 +351,16 @@ class Room {
     this.dead = false;
     this.lastChimeAt = 0;
     this.activityPaintedAt = 0;
+    this.notes = [];
+    this.wallCells = blankWall();
+    this.pen = 1;
+    this.nib = 1;
+    this.pending = [];
 
     $("roomCodeText").textContent = id;
     rememberRoom(id);
     this.setupScene();
+    this.setupWall();
     this.bind();
     this.connect();
     this.ticker = setInterval(() => this.paint(), 200);
@@ -335,6 +372,8 @@ class Room {
     clearInterval(this.ticker);
     clearInterval(this.pinger);
     clearInterval(this.tagTimer);
+    clearInterval(this.flusher);
+    removeEventListener("resize", this._wallResize);
     this.scene?.destroy();
     this.scene = null;
     if (this.ws) {
@@ -343,10 +382,21 @@ class Room {
     }
   }
 
+  /** Repaint everything that was rendered in the old language. */
+  relabel() {
+    this.buildPalette(true);
+    this.renderNotes();
+    this.paintStatic();
+    this.paint();
+    this.applyRoomVisibility();
+    this.setDecorating(!!this.decorating);
+  }
+
   /* --- the pixel room --- */
 
   setupScene() {
-    this.roomHidden = roomHiddenPref();
+    this.roomHidden = readPref(ROOM_PREF_KEY) === "1";
+    this.wallHidden = readPref(WALL_PREF_KEY) === "1";
     this.scene = new PixelRoom($("pixelRoom"), {
       onMove: (pos) => this.send({ type: "move", ...pos }),
       onPlace: (i, x, y) => this.send({ type: "place", i, x, y }),
@@ -358,18 +408,19 @@ class Room {
   }
 
   /** The furniture tray, drawn from the same sprites the room uses. */
-  buildPalette() {
+  buildPalette(rebuild = false) {
     const host = $("palette");
-    if (host.childElementCount) return;
+    if (host.childElementCount && !rebuild) return;
+    const chosen = rebuild ? this.currentTool() : "desk";
     host.innerHTML =
       ITEM_IDS.map(
         (id) =>
-          `<button type="button" class="tool" role="radio" data-tool="${id}" aria-checked="${id === "desk"}" title="${CATALOGUE[id].label}">
-             <img src="${itemThumb(id)}" alt="" /><span>${CATALOGUE[id].label}</span>
+          `<button type="button" class="tool" role="radio" data-tool="${id}" aria-checked="${id === chosen}" title="${esc(t(`item.${id}`))}">
+             <img src="${itemThumb(id)}" alt="" /><span>${esc(t(`item.${id}`))}</span>
            </button>`,
       ).join("") +
-      `<button type="button" class="tool tool--erase" role="radio" data-tool="erase" aria-checked="false" title="Remove furniture">
-         <span aria-hidden="true" style="font-size:20px;line-height:26px">⌫</span><span>Remove</span>
+      `<button type="button" class="tool tool--erase" role="radio" data-tool="erase" aria-checked="${chosen === "erase"}" title="${esc(t("dec.removeTitle"))}">
+         <span aria-hidden="true" style="font-size:20px;line-height:26px">⌫</span><span>${esc(t("dec.remove"))}</span>
        </button>`;
 
     for (const b of host.children) {
@@ -384,7 +435,7 @@ class Room {
     this.decorating = on;
     $("decorate").hidden = !on;
     $("moveHint").hidden = on;
-    $("decorateBtn").textContent = on ? "Stop decorating" : "Decorate the room";
+    $("decorateBtn").setAttribute("aria-pressed", String(on));
     this.scene?.setEditing(on, on ? this.currentTool() : null);
   }
 
@@ -396,13 +447,17 @@ class Room {
   applyRoomVisibility() {
     const hidden = this.roomHidden;
     $("scene").hidden = hidden;
+    $("wallStrip").hidden = hidden || this.wallHidden;
     $("plainClock").hidden = !hidden;
-    $("toggleRoom").textContent = hidden ? "Show the room" : "Hide the room";
+    $("toggleRoom").setAttribute("aria-pressed", String(hidden));
+    $("toggleRoomLabel").textContent = hidden ? t("rail.showRoom") : t("rail.hideRoom");
+    $("wallBtn").setAttribute("aria-pressed", String(!this.wallHidden && !hidden));
     if (hidden) {
       this.scene?.destroy();
     } else {
-      this.scene?.resize();
+      this.scene?.setExtraHeight(this.wallHidden ? 0 : WALL_H);
       this.scene?.start();
+      this.sizeWall();
     }
   }
 
@@ -414,15 +469,225 @@ class Room {
       host.innerHTML = tags.map(() => '<span class="tag"></span>').join("");
     }
     const nodes = host.children;
-    tags.forEach((t, i) => {
+    tags.forEach((t2, i) => {
       const el = nodes[i];
-      if (el.textContent !== t.name) el.textContent = t.name;
-      el.className = `tag${t.me ? " tag--me" : ""}`;
-      el.style.left = `${t.left}px`;
-      el.style.top = `${t.top}px`;
+      if (el.textContent !== t2.name) el.textContent = t2.name;
+      el.className = `tag${t2.me ? " tag--me" : ""}`;
+      el.style.left = `${t2.left}px`;
+      el.style.top = `${t2.top}px`;
     });
   }
 
+  /* --- 涂鸦墙 · the doodle wall --- */
+
+  setupWall() {
+    const c = $("wallCanvas");
+    this.wallCtx = c.getContext("2d");
+    this.wallCtx.imageSmoothingEnabled = false;
+
+    $("pens").innerHTML =
+      WALL_PENS.slice(1)
+        .map(
+          (colour, i) =>
+            `<button type="button" class="pen" role="radio" data-pen="${i + 1}" aria-checked="${i === 0}" style="background:${colour}" aria-label="${esc(t("wall.pen"))} ${i + 1}"></button>`,
+        )
+        .join("") +
+      `<button type="button" class="pen pen--erase" role="radio" data-pen="0" aria-checked="false" title="${esc(t("wall.eraser"))}">⌫</button>
+       <span class="gap"></span>` +
+      [1, 2, 4]
+        .map(
+          (n, i) =>
+            `<button type="button" class="nib" role="radio" data-nib="${n}" aria-checked="${i === 0}" title="${esc(t("wall.nib"))} ${n}">
+               <i style="width:${3 + i * 4}px;height:${3 + i * 4}px"></i></button>`,
+        )
+        .join("");
+
+    for (const b of $("pens").querySelectorAll("[data-pen]")) {
+      b.onclick = () => {
+        this.pen = Number(b.dataset.pen);
+        for (const o of $("pens").querySelectorAll("[data-pen]")) {
+          o.setAttribute("aria-checked", String(o === b));
+        }
+      };
+    }
+    for (const b of $("pens").querySelectorAll("[data-nib]")) {
+      b.onclick = () => {
+        this.nib = Number(b.dataset.nib);
+        for (const o of $("pens").querySelectorAll("[data-nib]")) {
+          o.setAttribute("aria-checked", String(o === b));
+        }
+      };
+    }
+
+    // Draw locally at once and send in batches: a drag is dozens of events a
+    // second and each one must not be a message.
+    const at = (e) => {
+      const r = c.getBoundingClientRect();
+      const s = r.width / WALL_W;
+      return { x: Math.floor((e.clientX - r.left) / s), y: Math.floor((e.clientY - r.top) / s) };
+    };
+    c.onpointerdown = (e) => {
+      c.setPointerCapture(e.pointerId);
+      this.drawing = at(e);
+      this.stroke(this.drawing, this.drawing);
+    };
+    c.onpointermove = (e) => {
+      if (!this.drawing) return;
+      const p = at(e);
+      this.stroke(this.drawing, p);
+      this.drawing = p;
+    };
+    const stop = () => (this.drawing = null);
+    c.onpointerup = stop;
+    c.onpointercancel = stop;
+    c.onpointerleave = stop;
+
+    this.flusher = setInterval(() => this.flushPaint(), 70);
+    this._wallResize = () => this.sizeWall();
+    addEventListener("resize", this._wallResize);
+    this.sizeWall();
+  }
+
+  /** The wall takes the room's scale exactly, so their pixels match. */
+  sizeWall() {
+    const scale = this.scene?.scale || 3;
+    const c = $("wallCanvas");
+    c.style.width = `${WALL_W * scale}px`;
+    c.style.height = `${WALL_H * scale}px`;
+    $("wallStrip").style.width = `${WALL_W * scale}px`;
+  }
+
+  /** Bresenham between two pointer samples, so a fast drag is a line. */
+  stroke(a, b) {
+    let { x, y } = a;
+    const dx = Math.abs(b.x - x);
+    const dy = -Math.abs(b.y - y);
+    const sx = x < b.x ? 1 : -1;
+    const sy = y < b.y ? 1 : -1;
+    let err = dx + dy;
+    for (let guard = 0; guard < 4096; guard++) {
+      this.dab(x, y);
+      if (x === b.x && y === b.y) break;
+      const e2 = 2 * err;
+      if (e2 >= dy) {
+        err += dy;
+        x += sx;
+      }
+      if (e2 <= dx) {
+        err += dx;
+        y += sy;
+      }
+    }
+  }
+
+  dab(cx, cy) {
+    const half = Math.floor(this.nib / 2);
+    for (let y = cy - half; y < cy - half + this.nib; y++) {
+      for (let x = cx - half; x < cx - half + this.nib; x++) {
+        if (x < 0 || y < 0 || x >= WALL_W || y >= WALL_H) continue;
+        if (this.wallCells[y * WALL_W + x] === this.pen) continue;
+        this.wallCells[y * WALL_W + x] = this.pen;
+        this.paintCell(x, y, this.pen);
+        this.pending.push([x, y, this.pen]);
+      }
+    }
+  }
+
+  flushPaint() {
+    if (!this.pending.length) return;
+    const cells = this.pending.splice(0, 600);
+    this.send({ type: "paint", cells });
+  }
+
+  paintCell(x, y, c) {
+    if (c === 0) this.wallCtx.clearRect(x, y, 1, 1);
+    else {
+      this.wallCtx.fillStyle = WALL_PENS[c];
+      this.wallCtx.fillRect(x, y, 1, 1);
+    }
+  }
+
+  repaintWall() {
+    this.wallCtx.clearRect(0, 0, WALL_W, WALL_H);
+    for (let y = 0; y < WALL_H; y++) {
+      for (let x = 0; x < WALL_W; x++) {
+        const c = this.wallCells[y * WALL_W + x];
+        if (c) this.paintCell(x, y, c);
+      }
+    }
+  }
+
+  /* --- 留言板 · the message board --- */
+
+  seenKey() {
+    return `pomo.seen.${this.id}`;
+  }
+
+  /**
+   * Updates the badge in place rather than re-rendering. Re-rendering here
+   * replaced the list while a click on a note's × was still in flight — the
+   * button was focused, this ran, and the element the click was headed for no
+   * longer existed, so taking a note down silently did nothing.
+   */
+  markBoardSeen() {
+    const newest = this.notes.reduce((m, n) => Math.max(m, n.at), 0);
+    if (newest <= (Number(readPref(this.seenKey(), "0")) || 0)) return;
+    writePref(this.seenKey(), String(newest));
+    $("boardNew").hidden = true;
+  }
+
+  renderNotes() {
+    const list = $("boardList");
+    const seen = Number(readPref(this.seenKey(), "0")) || 0;
+
+    if (!this.notes.length) {
+      list.innerHTML = `<li class="board__empty">${esc(t("board.empty"))}</li>`;
+    } else {
+      list.innerHTML = this.notes
+        .slice()
+        .reverse()
+        .map(
+          (n) => `<li class="note" data-note="${esc(n.id)}">
+            <img src="${iconDataURL(n.icon || "person", n.by, 2)}" alt="" />
+            <div>
+              <div class="note__who"><b>${esc(n.name)}</b> · ${esc(ago(n.at))}</div>
+              <div class="note__text">${esc(n.text)}</div>
+            </div>
+            <button class="note__x" data-unnote="${esc(n.id)}" title="${esc(t("board.removeTitle"))}" aria-label="${esc(t("board.removeTitle"))}">&times;</button>
+          </li>`,
+        )
+        .join("");
+      for (const b of list.querySelectorAll("[data-unnote]")) {
+        b.onclick = () => this.send({ type: "unnote", id: b.dataset.unnote });
+      }
+    }
+    list.classList.toggle("is-scrollable", list.scrollHeight > list.clientHeight + 4);
+
+    const fresh = this.notes.filter((n) => n.at > seen && n.by !== this.me?.id).length;
+    const pill = $("boardNew");
+    pill.hidden = fresh === 0;
+    pill.textContent = t("board.new", { n: fresh });
+    $("boardCount").textContent = t("board.count", { n: this.notes.length, max: MAX_NOTES });
+  }
+
+  postNote() {
+    const el = $("noteInput");
+    const text = el.value.trim();
+    if (!text) return;
+    this.send({ type: "note", text });
+    el.value = "";
+  }
+
+  /* --- deleting --- */
+
+  openDelete() {
+    $("delBody").innerHTML = t("del.body", { room: esc(this.id) });
+    $("delConfirmLabel").innerHTML = t("del.confirm", { room: esc(this.id) });
+    $("delInput").value = "";
+    $("delInput").placeholder = this.id;
+    $("deleteGate").hidden = false;
+    $("delInput").focus();
+  }
 
   /**
    * This window has been replaced by another one holding the same identity.
@@ -435,6 +700,7 @@ class Room {
     clearInterval(this.ticker);
     clearInterval(this.pinger);
     clearInterval(this.tagTimer);
+    clearInterval(this.flusher);
     this.scene?.destroy();
     if (this.ws) {
       this.ws.onclose = null;
@@ -445,8 +711,8 @@ class Room {
       }
     }
     $("presenceDot").classList.remove("live", "down");
-    $("connStatus").textContent = "open in another window";
-    toast("You opened this room in another window — reload here to use this one instead");
+    $("connStatus").textContent = t("conn.elsewhere");
+    toast(t("toast.replaced"));
   }
 
   /* --- transport --- */
@@ -471,35 +737,61 @@ class Room {
 
     ws.onmessage = (ev) => {
       const msg = JSON.parse(ev.data);
-      if (msg.type === "pong") {
-        // Halve the round trip so the offset isn't biased by latency.
-        const rtt = Date.now() - msg.echo;
-        this.skew = msg.serverTime + rtt / 2 - Date.now();
-        return;
+      switch (msg.type) {
+        case "pong": {
+          // Halve the round trip so the offset isn't biased by latency.
+          const rtt = Date.now() - msg.echo;
+          this.skew = msg.serverTime + rtt / 2 - Date.now();
+          return;
+        }
+        case "pos":
+          this.scene?.setPosition(msg.id, msg.x, msg.y, msg.d, msg.moving);
+          return;
+        case "replaced":
+          this.standDown();
+          return;
+        case "layout":
+          this.scene?.setLayout(msg.layout);
+          return;
+        case "notice":
+          toast(msg.key ? t(msg.key) : msg.text);
+          return;
+        case "note":
+          this.notes.push(msg.note);
+          if (msg.dropped) this.notes = this.notes.filter((n) => n.id !== msg.dropped);
+          this.renderNotes();
+          return;
+        case "unnote":
+          this.notes = this.notes.filter((n) => n.id !== msg.id);
+          this.renderNotes();
+          return;
+        case "painted":
+          for (const [x, y, c] of msg.cells) {
+            this.wallCells[y * WALL_W + x] = c;
+            this.paintCell(x, y, c);
+          }
+          return;
+        case "wall":
+          this.wallCells = decodeWall(msg.wall) || blankWall();
+          this.repaintWall();
+          $("undoWall").hidden = false;
+          return;
+        case "deleted":
+          this.roomDeleted(msg.by);
+          return;
       }
-      if (msg.type === "pos") {
-        this.scene?.setPosition(msg.id, msg.x, msg.y, msg.d, msg.moving);
-        return;
-      }
-      if (msg.type === "replaced") {
-        this.standDown();
-        return;
-      }
-      if (msg.type === "layout") {
-        this.scene?.setLayout(msg.layout);
-        return;
-      }
-      if (msg.type === "notice") {
-        toast(msg.text);
-        return;
-      }
+
       if (msg.type === "welcome") {
         this.me = msg.you;
         this.scene?.setMe(msg.you.id);
         this.knownIds = new Set();
+        this.notes = Array.isArray(msg.notes) ? msg.notes : [];
+        this.wallCells = decodeWall(msg.wall) || blankWall();
+        this.repaintWall();
+        this.renderNotes();
         if (!this.greeted) {
           this.greeted = true;
-          if (msg.members.length === 1) toast("You're first in — copy the invite link to bring your group");
+          if (msg.members.length === 1) toast(t("toast.first"));
         }
       }
       if (msg.type === "welcome" || msg.type === "state") {
@@ -516,11 +808,9 @@ class Room {
       if (this.dead) return;
       // 4000: this room was opened somewhere else and took our place. If we
       // reconnected we would take it straight back, and the two would fight
-      // over the room forever.
-      if (ev?.code === 4000) {
-        this.standDown();
-        return;
-      }
+      // over the room forever. 4002: the room no longer exists.
+      if (ev?.code === 4000) return this.standDown();
+      if (ev?.code === 4002) return;
       this.setPresence("down");
       const wait = Math.min(8000, 500 * 2 ** this.retry++);
       setTimeout(() => !this.dead && this.connect(), wait);
@@ -529,9 +819,21 @@ class Room {
     ws.onerror = () => ws.close();
   }
 
+  /** The room is gone, for everyone. Stop, forget it, and go back out. */
+  roomDeleted(by) {
+    const mine = by === this.me?.name;
+    this.destroy();
+    forgetRoom(this.id);
+    room = null;
+    toast(mine ? t("del.done") : t("del.byOther", { name: by }));
+    history.pushState({}, "", "/");
+    document.body.dataset.phase = "focus";
+    showLanding();
+  }
+
   send(payload) {
     if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(payload));
-    else toast("Reconnecting…");
+    else toast(t("toast.reconnecting"));
   }
 
   ping() {
@@ -555,7 +857,7 @@ class Room {
       this.lastChimeAt = Date.now();
       const finishedFocus = msg.chime === "focus";
       if (msg.settings.sound) sectionEnded(finishedFocus);
-      toast(finishedFocus ? "Focus finished — time for a break" : "Break over — back to focus");
+      toast(finishedFocus ? t("toast.focusDone") : t("toast.breakDone"));
     }
 
     if (!prev || prev.phase !== msg.phase) document.body.dataset.phase = msg.phase;
@@ -598,16 +900,16 @@ class Room {
       btn.setAttribute("aria-selected", String(btn.dataset.phase === s.phase));
     }
 
-    $("primary").textContent = s.running ? "Pause" : "Start";
+    $("primary").textContent = s.running ? t("ctl.pause") : t("ctl.start");
     document.body.classList.toggle("paused", !s.running);
 
     const n = s.members.length;
-    $("presenceText").textContent = n === 1 ? "just you" : `${n} people`;
+    $("presenceText").textContent = n === 1 ? t("rail.justYou") : t("rail.people", { n });
 
     $("members").innerHTML = s.members
       .map((m) => {
         const mine = this.me && m.id === this.me.id;
-        return `<div class="who${mine ? " who--me" : ""}"><img src="${iconDataURL(m.icon || "person", m.id, 2)}" alt="" />${esc(m.name)}${mine ? " <span>you</span>" : ""}</div>`;
+        return `<div class="who${mine ? " who--me" : ""}"><img src="${iconDataURL(m.icon || "person", m.id, 2)}" alt="" />${esc(m.name)}${mine ? ` <span>${esc(t("rail.you"))}</span>` : ""}</div>`;
       })
       .join("");
 
@@ -618,8 +920,9 @@ class Room {
     const log = this.state?.log || [];
     this.activityPaintedAt = Date.now();
     $("activity").innerHTML = log.length
-      ? log.map((e) => `<li>${esc(e.text)}<time>${ago(e.ts)}</time></li>`).join("")
-      : `<li class="empty">Nothing yet — start the timer.</li>`;
+      ? log.map((e) => `<li>${esc(logLine(e))}<time>${esc(ago(e.ts))}</time></li>`).join("")
+      : `<li class="empty">${esc(t("act.empty"))}</li>`;
+    $("activityPeek").textContent = log.length ? `· ${logLine(log[0])}` : "";
   }
 
   paint() {
@@ -636,23 +939,28 @@ class Room {
 
     const roundInCycle = (s.round % s.settings.roundsBeforeLong) + (s.phase === "focus" ? 1 : 0);
     const shown = Math.min(s.settings.roundsBeforeLong, Math.max(1, roundInCycle));
-    const metaText =
-      `${PHASE_NAME[s.phase]} · round ${shown} of ${s.settings.roundsBeforeLong}` +
-      (s.completed ? ` · ${s.completed} focus session${s.completed === 1 ? "" : "s"} done` : "");
+    const args = { phase: t(`phase.${s.phase}`), n: shown, of: s.settings.roundsBeforeLong, done: s.completed };
+    const metaText = t(s.completed === 0 ? "room.meta" : s.completed === 1 ? "room.metaDone1" : "room.metaDone", args);
     $("meta").textContent = metaText;
     $("metaPlain").textContent = metaText;
 
-    document.title = `${label} · ${PHASE_NAME[s.phase]}${s.running ? "" : " (paused)"}`;
+    document.title = `${label} · ${t(`phase.${s.phase}`)}${s.running ? "" : t("room.titlePaused")}`;
 
     // Keep the "2m ago" stamps honest without redrawing on every frame.
-    if (Date.now() - this.activityPaintedAt > 15_000) this.paintActivity();
+    if (Date.now() - this.activityPaintedAt > 15_000) {
+      this.paintActivity();
+      // Not while somebody is reaching for a note: replacing the list would
+      // pull the button out from under the pointer.
+      const board = document.querySelector(".panel--board");
+      if (!board.matches(":hover") && !board.contains(document.activeElement)) this.renderNotes();
+    }
   }
 
   setPresence(kind) {
     const dot = $("presenceDot");
     dot.classList.toggle("live", kind === "live");
     dot.classList.toggle("down", kind === "down");
-    $("connStatus").textContent = kind === "live" ? "in sync" : "reconnecting…";
+    $("connStatus").textContent = kind === "live" ? t("conn.live") : t("conn.down");
   }
 
   /* --- input --- */
@@ -670,9 +978,9 @@ class Room {
       const link = `${location.origin}/r/${this.id}`;
       try {
         await navigator.clipboard.writeText(link);
-        toast("Invite link copied — send it to your group");
+        toast(t("ctl.copied"));
       } catch {
-        prompt("Copy this link:", link);
+        prompt(t("ctl.copyPrompt"), link);
       }
     };
 
@@ -682,20 +990,31 @@ class Room {
       this.icon = icon;
       if (name) this.send({ type: "name", name });
       this.send({ type: "icon", icon });
-      if (!name) toast("Reload the room to go back to being a guest");
+      if (!name) toast(t("gate.anonAfter"));
     };
 
     $("toggleRoom").onclick = () => {
       this.roomHidden = !this.roomHidden;
-      setRoomHiddenPref(this.roomHidden);
+      writePref(ROOM_PREF_KEY, this.roomHidden ? "1" : "0");
       if (this.roomHidden && this.decorating) this.setDecorating(false);
+      this.applyRoomVisibility();
+    };
+
+    $("wallBtn").onclick = () => {
+      if (this.roomHidden) {
+        this.roomHidden = false;
+        writePref(ROOM_PREF_KEY, "0");
+      } else {
+        this.wallHidden = !this.wallHidden;
+        writePref(WALL_PREF_KEY, this.wallHidden ? "1" : "0");
+      }
       this.applyRoomVisibility();
     };
 
     $("decorateBtn").onclick = () => {
       if (this.roomHidden) {
         this.roomHidden = false;
-        setRoomHiddenPref(false);
+        writePref(ROOM_PREF_KEY, "0");
         this.applyRoomVisibility();
       }
       this.setDecorating(!this.decorating);
@@ -703,9 +1022,35 @@ class Room {
     $("doneDecorating").onclick = () => this.setDecorating(false);
     $("undoLayout").onclick = () => this.send({ type: "undoLayout" });
     $("resetLayout").onclick = () => {
-      if (confirm("Put the room back to its original furniture? Everyone's room changes.")) {
-        this.send({ type: "resetLayout" });
+      if (confirm(t("dec.confirmReset"))) this.send({ type: "resetLayout" });
+    };
+
+    $("clearWall").onclick = () => {
+      if (confirm(t("wall.confirmClear"))) this.send({ type: "clearWall" });
+    };
+    $("undoWall").onclick = () => this.send({ type: "undoWall" });
+
+    $("postNote").onclick = () => this.postNote();
+    $("noteInput").onkeydown = (e) => {
+      // Enter posts, Shift+Enter is a new line — a note is usually one line.
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        this.postNote();
       }
+    };
+    for (const el of [$("boardList"), $("noteInput")]) {
+      el.addEventListener("focusin", () => this.markBoardSeen());
+      el.addEventListener("click", () => this.markBoardSeen());
+    }
+
+    $("deleteBtn").onclick = () => this.openDelete();
+    $("delCancel").onclick = () => ($("deleteGate").hidden = true);
+    $("deleteForm").onsubmit = (e) => {
+      e.preventDefault();
+      const typed = $("delInput").value.trim().toLowerCase();
+      if (typed !== this.id) return toast(t("del.mismatch"));
+      $("deleteGate").hidden = true;
+      this.send({ type: "deleteRoom", confirm: this.id });
     };
 
     for (const id of ["setFocus", "setShort", "setLong", "setRounds", "setAuto", "setSound"]) {
@@ -766,18 +1111,6 @@ function fmt(ms) {
   const s = total % 60;
   const pad = (n) => String(n).padStart(2, "0");
   return h ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
-}
-
-function ago(ts) {
-  const secs = Math.max(0, Math.round((Date.now() - ts) / 1000));
-  if (secs < 10) return "just now";
-  if (secs < 60) return `${secs}s ago`;
-  const mins = Math.round(secs / 60);
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  return days === 1 ? "yesterday" : `${days}d ago`;
 }
 
 function esc(s) {
@@ -875,13 +1208,13 @@ function sectionEnded(finishedFocus) {
     // Autoplay still blocked — the phase colour and toast carry the message.
     return;
   }
-  const t = audioCtx.currentTime + 0.02;
+  const t0 = audioCtx.currentTime + 0.02;
   const notes = finishedFocus
     ? [ [587.33, 0.0], [880.0, 0.16], [1174.66, 0.32] ]   // work done: rising, "go rest"
     : [ [880.0, 0.0], [659.25, 0.18], [523.25, 0.36] ];    // rest done: falling, "back to it"
-  for (const [freq, offset] of notes) tone(freq, t + offset, 0.5, 0.65);
+  for (const [freq, offset] of notes) tone(freq, t0 + offset, 0.5, 0.65);
   // A second pass a beat later — a notification you can miss isn't one.
-  for (const [freq, offset] of notes) tone(freq, t + 0.9 + offset, 0.5, 0.55);
+  for (const [freq, offset] of notes) tone(freq, t0 + 0.9 + offset, 0.5, 0.55);
 }
 
 /* ---------------- routing ---------------- */
@@ -898,5 +1231,8 @@ function route() {
   }
 }
 
+initLang();
+buildLangPickers();
+applyI18n();
 addEventListener("popstate", route);
 route();
