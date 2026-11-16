@@ -106,6 +106,15 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
   way. Phase colour becomes the room's light: warm lamps on focus, cooler on a
   break. **Hide the room** in the rail swaps back to a plain clock, remembered
   per browser.
+- **Decorate it together.** *Decorate the room* opens a tray of furniture —
+  desks, chairs, shelves, plants, windows, a clock, a rug, a cat — and clicking
+  the room places the selected piece on an 8px grid; the eraser takes things
+  away. Every change is shared, persisted with the room and covered by the
+  same 30-day expiry, so a group's arrangement is still there tomorrow. Undo
+  steps back one change for everyone, and *Reset room* restores the original
+  furniture behind a confirm. Edits travel one item at a time rather than as
+  a whole layout, so two people rearranging at once merge instead of
+  overwriting each other.
 - Light and dark, phase and remaining time shown in the tab title. The timer is
   driven by the on-screen controls only — there is deliberately no keyboard
   shortcut, so a stray keypress cannot reset a room everyone is working in.
@@ -173,9 +182,15 @@ public/app.js     WebSocket client, clock-offset correction, rendering, chime
 ## Protocol
 
 Client → server: `start`, `pause`, `reset`, `skip`, `phase`, `settings`,
-`name`, `icon`, `move`, `ping`. A display name and icon may also be supplied
-as `?name=` and `?icon=` on the WebSocket URL, which is how they are set at
-join time.
+`name`, `icon`, `place`, `removeItem`, `resetLayout`, `undoLayout`, `move`,
+`ping`. A display name and icon may also be supplied as `?name=` and `?icon=`
+on the WebSocket URL, which is how they are set at join time.
+
+The furniture layout goes out on its own `layout` message and in the welcome,
+not folded into the timer snapshot: it only changes while someone is
+decorating, and putting a kilobyte of furniture on every start and pause
+would be waste. Item ids are validated against the catalogue and positions
+clamped server-side, the same posture as names and icons.
 
 `move` is deliberately separate from everything else: it is relayed to theother sockets as `pos` and never written to storage or mixed into the timer
 broadcast. At ten updates a second per walker, doing otherwise would mean a

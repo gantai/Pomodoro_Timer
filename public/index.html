@@ -108,6 +108,16 @@
               </div>
             </div>
             <p class="hint hint--move" id="moveHint">Arrow keys or <kbd>WASD</kbd> to walk · or click where you want to go</p>
+
+            <div class="decorate" id="decorate" hidden>
+              <div class="decorate__items" id="palette" role="radiogroup" aria-label="Furniture"></div>
+              <div class="decorate__acts">
+                <button id="undoLayout" class="btn" type="button">Undo</button>
+                <button id="resetLayout" class="btn" type="button">Reset room</button>
+                <button id="doneDecorating" class="btn btn--primary" type="button">Done</button>
+              </div>
+              <p class="fineprint">Click the room to place, or pick the eraser and click something to take it away. Everyone in the room sees the change.</p>
+            </div>
           </div>
 
           <div class="plainclock" id="plainClock" hidden>
@@ -132,6 +142,7 @@
             <div id="members" class="members"></div>
             <button id="rename" class="linkbtn" type="button">Change your name or icon</button>
             <button id="toggleRoom" class="linkbtn" type="button">Hide the room</button>
+            <button id="decorateBtn" class="linkbtn" type="button">Decorate the room</button>
           </section>
 
           <section class="panel">

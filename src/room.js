@@ -44,6 +44,8 @@ function defaultState() {
     round: 0,
     completed: 0,
     settings: { ...DEFAULT_SETTINGS },
+    layout: DEFAULT_LAYOUT.map((o) => ({ ...o })),
+    prevLayout: null,
     log: [],
     guestSeq: 0,
   };
@@ -71,6 +73,50 @@ const cleanCid = (raw) => (typeof raw === "string" && /^[A-Za-z0-9-]{8,64}$/.tes
  * person standing in the room, which is what this is here to prevent.
  */
 const SOCKET_STALE_MS = 150_000;
+
+/** Furniture people may place. Kept in step with public/pixel/art.js. */
+const ITEM_IDS = ["desk", "chair", "shelf", "plant", "window", "clock", "cat", "rug"];
+const MAX_ITEMS = 80;
+
+/** The room everyone starts with. Kept in step with DEFAULT_LAYOUT there. */
+const DEFAULT_LAYOUT = [
+  { i: "rug", x: 96, y: 112 },
+  { i: "window", x: 48, y: 3 },
+  { i: "clock", x: 100, y: 5 },
+  { i: "window", x: 208, y: 3 },
+  { i: "shelf", x: 0, y: 20 },
+  { i: "shelf", x: 288, y: 20 },
+  { i: "desk", x: 16, y: 44 },
+  { i: "chair", x: 32, y: 80 },
+  { i: "desk", x: 88, y: 44 },
+  { i: "chair", x: 104, y: 80 },
+  { i: "desk", x: 168, y: 44 },
+  { i: "chair", x: 184, y: 80 },
+  { i: "desk", x: 240, y: 44 },
+  { i: "chair", x: 256, y: 80 },
+  { i: "chair", x: 64, y: 122 },
+  { i: "chair", x: 240, y: 122 },
+  { i: "plant", x: 16, y: 146 },
+  { i: "plant", x: 278, y: 146 },
+  { i: "shelf", x: 0, y: 160 },
+  { i: "shelf", x: 288, y: 160 },
+  { i: "cat", x: 148, y: 128 },
+];
+
+/** Items are placed by strangers, so only id and position survive the trip. */
+function cleanItem(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  if (!ITEM_IDS.includes(raw.i)) return null;
+  const x = Math.round(Number(raw.x));
+  const y = Math.round(Number(raw.y));
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  // Allowed to hang off the edge a little; not allowed to be lost offscreen.
+  return {
+    i: raw.i,
+    x: Math.max(-48, Math.min(ROOM_W, x)),
+    y: Math.max(-24, Math.min(ROOM_H, y)),
+  };
+}
 
 /** Logical pixel size of the room; positions are clamped to it. */
 const ROOM_W = 320;
@@ -186,6 +232,7 @@ export class TimerRoom {
       JSON.stringify({
         type: "welcome",
         you: member,
+        layout: this.state.layout,
         positions: [...(this.positions || new Map())].map(([id, p]) => ({ id, ...p })),
         ...this.snapshot(),
       }),
@@ -295,6 +342,60 @@ export class TimerRoom {
         if (!next || next === me.icon) return;
         ws.serializeAttachment({ ...me, icon: next });
         break;
+      }
+
+      // ── decorating ──────────────────────────────────────────────────────
+      // Each edit is one item, not the whole room: the messages stay tiny and
+      // two people rearranging at once merge instead of overwriting.
+      case "place": {
+        const item = cleanItem(msg);
+        if (!item) return;
+        if (s.layout.length >= MAX_ITEMS) {
+          ws.send(JSON.stringify({ type: "notice", text: "The room is full — remove something first" }));
+          return;
+        }
+        s.prevLayout = s.layout.map((o) => ({ ...o }));
+        s.layout = [...s.layout, item];
+        this.addLog(`${me.name} added a ${item.i}`);
+        await this.save();
+        this.broadcastLayout();
+        this.broadcast();
+        return;
+      }
+
+      case "removeItem": {
+        const k = Math.round(Number(msg.index));
+        if (!Number.isInteger(k) || k < 0 || k >= s.layout.length) return;
+        const gone = s.layout[k];
+        s.prevLayout = s.layout.map((o) => ({ ...o }));
+        s.layout = s.layout.filter((_, n) => n !== k);
+        this.addLog(`${me.name} removed a ${gone.i}`);
+        await this.save();
+        this.broadcastLayout();
+        this.broadcast();
+        return;
+      }
+
+      case "resetLayout": {
+        s.prevLayout = s.layout.map((o) => ({ ...o }));
+        s.layout = DEFAULT_LAYOUT.map((o) => ({ ...o }));
+        this.addLog(`${me.name} put the room back to its original layout`);
+        await this.save();
+        this.broadcastLayout();
+        this.broadcast();
+        return;
+      }
+
+      case "undoLayout": {
+        if (!s.prevLayout) return;
+        const back = s.prevLayout;
+        s.prevLayout = s.layout.map((o) => ({ ...o }));
+        s.layout = back;
+        this.addLog(`${me.name} undid the last change to the room`);
+        await this.save();
+        this.broadcastLayout();
+        this.broadcast();
+        return;
       }
 
       case "settings": {
@@ -487,6 +588,23 @@ export class TimerRoom {
         other.send(payload);
       } catch {
         /* going away; the close handler tidies up */
+      }
+    }
+  }
+
+  /**
+   * The layout goes out on its own, not folded into the timer snapshot: it
+   * only changes while someone is decorating, and putting a kilobyte of
+   * furniture on every start and pause would be waste.
+   */
+  broadcastLayout() {
+    const payload = JSON.stringify({ type: "layout", layout: this.state.layout });
+    for (const ws of this.ctx.getWebSockets()) {
+      if (this.isZombie(ws)) continue;
+      try {
+        ws.send(payload);
+      } catch {
+        /* going away */
       }
     }
   }

@@ -443,6 +443,84 @@ export const ICON_IDS = ICONS.map((i) => i.id);
 const BY_ID = new Map(ICONS.map((i) => [i.id, i]));
 export const iconById = (id) => BY_ID.get(id) || BY_ID.get("person");
 
+/* ── the furniture catalogue ───────────────────────────────────────────────
+   What can be placed in a room. Ids are short because they travel in the
+   room's saved layout; the server validates against this same list. */
+
+/** The rug is painted rather than drawn as a grid — 128x40 of text is silly. */
+export function paintRug(ctx, x, y) {
+  const w = 128;
+  const h = 40;
+  ctx.fillStyle = PAL["0"];
+  ctx.fillRect(x + 1, y, w - 2, h);
+  ctx.fillRect(x, y + 1, w, h - 2);
+  ctx.fillStyle = PAL.r;
+  ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+  ctx.fillStyle = PAL.o;
+  ctx.fillRect(x + 4, y + 3, w - 8, h - 6);
+  ctx.fillStyle = PAL.r;
+  ctx.fillRect(x + 6, y + 5, w - 12, h - 10);
+  ctx.fillStyle = PAL.o;
+  for (let i = x + 10; i < x + w - 10; i += 8) ctx.fillRect(i, y + h / 2 - 2, 4, 4);
+  ctx.fillStyle = PAL.n;
+  for (let i = x + 2; i < x + w - 2; i += 4) {
+    ctx.fillRect(i, y - 2, 2, 2);
+    ctx.fillRect(i, y + h, 2, 2);
+  }
+}
+
+export const CATALOGUE = {
+  desk: { label: "Desk", art: DESK },
+  chair: { label: "Chair", art: CHAIR },
+  shelf: { label: "Shelf", art: SHELF },
+  plant: { label: "Plant", art: PLANT },
+  window: { label: "Window", art: WINDOW },
+  clock: { label: "Clock", art: CLOCK },
+  cat: { label: "Cat", art: CAT },
+  rug: { label: "Rug", paint: paintRug, w: 128, h: 40 },
+};
+
+export const ITEM_IDS = Object.keys(CATALOGUE);
+
+export function itemSize(id) {
+  const item = CATALOGUE[id];
+  if (!item) return { w: 0, h: 0 };
+  return item.art ? spriteSize(item.art) : { w: item.w, h: item.h };
+}
+
+/** Paint one catalogue item at a position, sprite or painter alike. */
+export function paintItem(ctx, id, x, y) {
+  const item = CATALOGUE[id];
+  if (!item) return;
+  if (item.art) blit(ctx, item.art, x, y);
+  else item.paint(ctx, x, y);
+}
+
+/** The room everyone starts with, and what "reset" restores. */
+export const DEFAULT_LAYOUT = [
+  { i: "rug", x: 96, y: 112 },
+  { i: "window", x: 48, y: 3 },
+  { i: "clock", x: 100, y: 5 },
+  { i: "window", x: 208, y: 3 },
+  { i: "shelf", x: 0, y: 20 },
+  { i: "shelf", x: 288, y: 20 },
+  { i: "desk", x: 16, y: 44 },
+  { i: "chair", x: 32, y: 80 },
+  { i: "desk", x: 88, y: 44 },
+  { i: "chair", x: 104, y: 80 },
+  { i: "desk", x: 168, y: 44 },
+  { i: "chair", x: 184, y: 80 },
+  { i: "desk", x: 240, y: 44 },
+  { i: "chair", x: 256, y: 80 },
+  { i: "chair", x: 64, y: 122 },
+  { i: "chair", x: 240, y: 122 },
+  { i: "plant", x: 16, y: 146 },
+  { i: "plant", x: 278, y: 146 },
+  { i: "shelf", x: 0, y: 160 },
+  { i: "shelf", x: 288, y: 160 },
+  { i: "cat", x: 148, y: 128 },
+];
+
 /* ── drawing ───────────────────────────────────────────────────────────── */
 
 /**

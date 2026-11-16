@@ -589,6 +589,59 @@ body.paused .hud .time { color: #cfc6b6; }
 
 .hint--move { margin-top: 12px; }
 
+/* ── decorating ── */
+
+.decorate {
+  margin-top: 14px;
+  width: min(620px, 100%);
+  padding: 14px 16px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.decorate[hidden] { display: none; }
+
+.decorate__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+.tool {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  border-radius: 9px;
+  padding: 5px 7px 3px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 52px;
+}
+.tool img {
+  display: block;
+  height: 26px;
+  width: auto;
+  max-width: 46px;
+  image-rendering: pixelated;
+}
+.tool span { font-size: 9.5px; color: var(--ink-faint); }
+.tool:hover { border-color: var(--accent); }
+.tool[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.tool[aria-checked="true"] span { color: var(--accent); }
+.tool--erase { font-size: 18px; line-height: 26px; }
+
+.decorate__acts {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 12px;
+}
+.decorate__acts .btn { padding: 8px 14px; font-size: 13px; }
+.decorate .fineprint { text-align: center; margin-top: 10px; }
+
 .plainclock { text-align: center; padding: 26px 0 4px; }
 .plainclock[hidden] { display: none; }
 

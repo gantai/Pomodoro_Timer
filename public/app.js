@@ -3,7 +3,7 @@
    offset between this device's clock and the room's. */
 
 import { PixelRoom } from "./pixel/scene.js";
-import { ICONS, ICON_IDS, iconDataURL } from "./pixel/art.js";
+import { ICONS, ICON_IDS, iconDataURL, CATALOGUE, ITEM_IDS, itemSize, paintItem } from "./pixel/art.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -347,13 +347,50 @@ class Room {
 
   setupScene() {
     this.roomHidden = roomHiddenPref();
-    this.scene = new PixelRoom($("pixelRoom"), (pos) => {
-      this.send({ type: "move", ...pos });
+    this.scene = new PixelRoom($("pixelRoom"), {
+      onMove: (pos) => this.send({ type: "move", ...pos }),
+      onPlace: (i, x, y) => this.send({ type: "place", i, x, y }),
+      onRemove: (index) => this.send({ type: "removeItem", index }),
     });
+    this.buildPalette();
     this.applyRoomVisibility();
-    // Repaint the name tags on the same cadence as the clock; they only need
-    // to track walking, not every animation frame.
     this.tagTimer = setInterval(() => this.paintTags(), 80);
+  }
+
+  /** The furniture tray, drawn from the same sprites the room uses. */
+  buildPalette() {
+    const host = $("palette");
+    if (host.childElementCount) return;
+    host.innerHTML =
+      ITEM_IDS.map(
+        (id) =>
+          `<button type="button" class="tool" role="radio" data-tool="${id}" aria-checked="${id === "desk"}" title="${CATALOGUE[id].label}">
+             <img src="${itemThumb(id)}" alt="" /><span>${CATALOGUE[id].label}</span>
+           </button>`,
+      ).join("") +
+      `<button type="button" class="tool tool--erase" role="radio" data-tool="erase" aria-checked="false" title="Remove furniture">
+         <span aria-hidden="true" style="font-size:20px;line-height:26px">⌫</span><span>Remove</span>
+       </button>`;
+
+    for (const b of host.children) {
+      b.onclick = () => {
+        for (const o of host.children) o.setAttribute("aria-checked", String(o === b));
+        this.scene?.setEditing(true, b.dataset.tool);
+      };
+    }
+  }
+
+  setDecorating(on) {
+    this.decorating = on;
+    $("decorate").hidden = !on;
+    $("moveHint").hidden = on;
+    $("decorateBtn").textContent = on ? "Stop decorating" : "Decorate the room";
+    this.scene?.setEditing(on, on ? this.currentTool() : null);
+  }
+
+  currentTool() {
+    const picked = $("palette").querySelector('[aria-checked="true"]');
+    return picked?.dataset.tool || "desk";
   }
 
   applyRoomVisibility() {
@@ -448,6 +485,14 @@ class Room {
         this.standDown();
         return;
       }
+      if (msg.type === "layout") {
+        this.scene?.setLayout(msg.layout);
+        return;
+      }
+      if (msg.type === "notice") {
+        toast(msg.text);
+        return;
+      }
       if (msg.type === "welcome") {
         this.me = msg.you;
         this.scene?.setMe(msg.you.id);
@@ -460,6 +505,7 @@ class Room {
       if (msg.type === "welcome" || msg.type === "state") {
         if (!this.skew) this.skew = msg.serverTime - Date.now();
         this.apply(msg);
+        if (msg.layout) this.scene?.setLayout(msg.layout);
         if (msg.positions) {
           for (const p of msg.positions) this.scene?.setPosition(p.id, p.x, p.y, p.d, false);
         }
@@ -642,7 +688,24 @@ class Room {
     $("toggleRoom").onclick = () => {
       this.roomHidden = !this.roomHidden;
       setRoomHiddenPref(this.roomHidden);
+      if (this.roomHidden && this.decorating) this.setDecorating(false);
       this.applyRoomVisibility();
+    };
+
+    $("decorateBtn").onclick = () => {
+      if (this.roomHidden) {
+        this.roomHidden = false;
+        setRoomHiddenPref(false);
+        this.applyRoomVisibility();
+      }
+      this.setDecorating(!this.decorating);
+    };
+    $("doneDecorating").onclick = () => this.setDecorating(false);
+    $("undoLayout").onclick = () => this.send({ type: "undoLayout" });
+    $("resetLayout").onclick = () => {
+      if (confirm("Put the room back to its original furniture? Everyone's room changes.")) {
+        this.send({ type: "resetLayout" });
+      }
     };
 
     for (const id of ["setFocus", "setShort", "setLong", "setRounds", "setAuto", "setSound"]) {
@@ -719,6 +782,25 @@ function ago(ts) {
 
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/** A furniture thumbnail for the palette, drawn from the same sprite data. */
+const thumbs = new Map();
+function itemThumb(id) {
+  const hit = thumbs.get(id);
+  if (hit) return hit;
+  const { w, h } = itemSize(id);
+  const scale = Math.max(1, Math.min(3, Math.floor(46 / w) || 1));
+  const c = document.createElement("canvas");
+  c.width = w * scale;
+  c.height = h * scale;
+  const ctx = c.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.scale(scale, scale);
+  paintItem(ctx, id, 0, 0);
+  const url = c.toDataURL();
+  thumbs.set(id, url);
+  return url;
 }
 
 let toastTimer;

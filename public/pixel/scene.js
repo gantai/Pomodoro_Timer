@@ -1,14 +1,18 @@
-/* The pixel room: layout, collision, movement and rendering.
+/* The pixel room: layout, movement and rendering.
  *
  * Everything is drawn at a fixed logical size (ROOM_W × ROOM_H) and scaled up
  * by a whole number, so pixels stay square and crisp at any window size.
  * Positions on the wire are in logical pixels, which keeps every screen
  * agreeing on where people are regardless of how big their window is.
+ *
+ * Furniture is baked into an offscreen canvas and re-baked only when the
+ * layout changes, so a frame is one drawImage plus the people. People draw
+ * over furniture by design — there is no collision and no depth sorting.
  */
 
 import {
-  PAL, DESK, SHELF, PLANT, CHAIR, CAT, WINDOW, CLOCK,
-  FACINGS, FLIP_FACING, walkCycle, paletteFor, blit, spriteSize, iconById,
+  PAL, FACINGS, FLIP_FACING, walkCycle, paletteFor, blit, spriteSize, iconById,
+  CATALOGUE, DEFAULT_LAYOUT, itemSize, paintItem,
 } from "./art.js";
 
 export const TILE = 16;
@@ -17,50 +21,12 @@ export const ROWS = 12;
 export const ROOM_W = COLS * TILE; // 320
 export const ROOM_H = ROWS * TILE; // 192
 
-const WALL_ROWS = 2;              // back wall occupies the top two rows
+const WALL_ROWS = 2;
 const FLOOR_TOP = WALL_ROWS * TILE;
-const SPEED = 46;                 // logical px per second
-const FOOT_W = 8;                 // collision box at the feet
-const FOOT_H = 5;
+const SPEED = 46; // logical px per second
+const GRID = 8; // placement snaps to half a tile
 
-/* ── furniture layout ──────────────────────────────────────────────────────
-   x,y are in logical pixels, anchored at the sprite's top-left. `solid` is
-   the footprint you cannot walk through, relative to the same anchor. */
-
-const DESK_Y = 3 * TILE - 4;
-
-const FURNITURE = [
-  // Back wall. The clock sits off-centre so the timer HUD doesn't cover it.
-  { art: WINDOW, x: 3 * TILE, y: 3, solid: null },
-  { art: CLOCK, x: 6 * TILE + 4, y: 5, solid: null },
-  { art: WINDOW, x: 13 * TILE, y: 3, solid: null },
-  { art: SHELF, x: 0, y: FLOOR_TOP - 12, solid: { x: 0, y: 12, w: 16, h: 14 } },
-  { art: SHELF, x: 18 * TILE, y: FLOOR_TOP - 12, solid: { x: 0, y: 12, w: 16, h: 14 } },
-
-  // Four workstations across the top of the floor.
-  { art: DESK, x: 1 * TILE, y: DESK_Y, solid: { x: 0, y: 8, w: 32, h: 14 } },
-  { art: CHAIR, x: 2 * TILE, y: 5 * TILE, solid: null },
-  { art: DESK, x: 5 * TILE + 8, y: DESK_Y, solid: { x: 0, y: 8, w: 32, h: 14 } },
-  { art: CHAIR, x: 6 * TILE + 8, y: 5 * TILE, solid: null },
-  { art: DESK, x: 10 * TILE + 8, y: DESK_Y, solid: { x: 0, y: 8, w: 32, h: 14 } },
-  { art: CHAIR, x: 11 * TILE + 8, y: 5 * TILE, solid: null },
-  { art: DESK, x: 15 * TILE, y: DESK_Y, solid: { x: 0, y: 8, w: 32, h: 14 } },
-  { art: CHAIR, x: 16 * TILE, y: 5 * TILE, solid: null },
-
-  // Lounge corner around the rug.
-  { art: CHAIR, x: 4 * TILE, y: 7 * TILE + 10, solid: null },
-  { art: CHAIR, x: 15 * TILE, y: 7 * TILE + 10, solid: null },
-  { art: PLANT, x: 1 * TILE, y: 6 * TILE + 8, solid: { x: 3, y: 11, w: 10, h: 6 } },
-  { art: PLANT, x: 17 * TILE + 6, y: 6 * TILE + 8, solid: { x: 3, y: 11, w: 10, h: 6 } },
-
-  // Floor-standing shelves anchor the bottom corners.
-  { art: SHELF, x: 0, y: 10 * TILE, solid: { x: 0, y: 4, w: 16, h: 17 } },
-  { art: SHELF, x: 18 * TILE, y: 10 * TILE, solid: { x: 0, y: 4, w: 16, h: 17 } },
-
-  { art: CAT, x: 9 * TILE + 4, y: 8 * TILE, solid: null },
-];
-
-/** Where people are put when they arrive, in order: the desks, then the rug. */
+/** Where people are put when they arrive, in order. */
 const SEATS = [
   [2 * TILE, 5 * TILE + 10],
   [6 * TILE + 8, 5 * TILE + 10],
@@ -74,45 +40,21 @@ const SEATS = [
 
 export function seatFor(index) {
   const [x, y] = SEATS[index % SEATS.length];
-  // Nudge overflow arrivals so a ninth person doesn't stand inside the eighth.
   const lap = Math.floor(index / SEATS.length);
   return { x: x + lap * 5, y: y + lap * 4 };
 }
 
-/* ── collision ─────────────────────────────────────────────────────────── */
+const snap = (n) => Math.round(n / GRID) * GRID;
 
-function buildSolids() {
-  const boxes = [];
-  for (const item of FURNITURE) {
-    if (!item.solid) continue;
-    boxes.push({
-      x: item.x + item.solid.x,
-      y: item.y + item.solid.y,
-      w: item.solid.w,
-      h: item.solid.h,
-    });
-  }
-  return boxes;
+/** People stay inside the room; furniture does not stop them. */
+function clampToRoom(x, y) {
+  return {
+    x: Math.max(6, Math.min(ROOM_W - 6, x)),
+    y: Math.max(FLOOR_TOP + 8, Math.min(ROOM_H - 2, y)),
+  };
 }
 
-const SOLIDS = buildSolids();
-
-function blocked(x, y) {
-  // Feet box centred on x, sitting just above y.
-  const l = x - FOOT_W / 2;
-  const r = x + FOOT_W / 2;
-  const t = y - FOOT_H;
-  const b = y;
-  if (l < 2 || r > ROOM_W - 2 || t < FLOOR_TOP + 2 || b > ROOM_H - 2) return true;
-  for (const s of SOLIDS) {
-    if (r > s.x && l < s.x + s.w && b > s.y && t < s.y + s.h) return true;
-  }
-  return false;
-}
-
-export const _test = { blocked, SOLIDS, buildSolids };
-
-/* ── floor and wall, drawn procedurally ────────────────────────────────── */
+/* ── floor and wall ────────────────────────────────────────────────────── */
 
 function noise(x, y) {
   const n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
@@ -120,7 +62,6 @@ function noise(x, y) {
 }
 
 function paintBackdrop(ctx) {
-  // ── wall: soft vertical stripes, a picture rail and a skirting board
   ctx.fillStyle = PAL.n;
   ctx.fillRect(0, 0, ROOM_W, FLOOR_TOP);
   ctx.fillStyle = "rgba(255,255,255,0.33)";
@@ -132,53 +73,24 @@ function paintBackdrop(ctx) {
   ctx.fillStyle = PAL["0"];
   ctx.fillRect(0, FLOOR_TOP - 6, ROOM_W, 1);
 
-  // ── floor: long horizontal boards. Seams are faint and board ends are
-  // rare — a hard grid every few pixels reads as brickwork, not timber.
+  // Long horizontal boards. Seams are faint and board ends rare — a hard
+  // grid every few pixels reads as brickwork, not timber.
   ctx.fillStyle = PAL.D;
   ctx.fillRect(0, FLOOR_TOP, ROOM_W, ROOM_H - FLOOR_TOP);
-
   let band = 0;
   for (let y = FLOOR_TOP; y < ROOM_H; y += 10, band++) {
     ctx.fillStyle = band % 2 ? "rgba(255,255,255,0.025)" : "rgba(0,0,0,0.035)";
     ctx.fillRect(0, y, ROOM_W, 10);
     ctx.fillStyle = "rgba(0,0,0,0.16)";
     ctx.fillRect(0, y + 9, ROOM_W, 1);
-    // One board end per row, staggered.
     ctx.fillStyle = "rgba(0,0,0,0.13)";
     ctx.fillRect((band * 83) % ROOM_W, y, 1, 9);
-    // Grain: a few short dashes, deterministic so nothing shimmers.
     for (let x = 0; x < ROOM_W; x += 6) {
       if (noise(x, y) > 0.86) {
         ctx.fillStyle = "rgba(255,255,255,0.05)";
         ctx.fillRect(x, y + 2 + ((x + band) % 6), 4, 1);
       }
     }
-  }
-
-  // ── rug
-  const rx = 6 * TILE;
-  const ry = 7 * TILE;
-  const rw = 8 * TILE;
-  const rh = 40;
-  ctx.fillStyle = PAL["0"];
-  ctx.fillRect(rx + 1, ry, rw - 2, rh);
-  ctx.fillRect(rx, ry + 1, rw, rh - 2);
-  ctx.fillStyle = PAL.r;
-  ctx.fillRect(rx + 1, ry + 1, rw - 2, rh - 2);
-  ctx.fillStyle = PAL.o;
-  ctx.fillRect(rx + 4, ry + 3, rw - 8, rh - 6);
-  ctx.fillStyle = PAL.r;
-  ctx.fillRect(rx + 6, ry + 5, rw - 12, rh - 10);
-  // Simple woven motif rather than a flat slab.
-  ctx.fillStyle = PAL.o;
-  for (let x = rx + 10; x < rx + rw - 10; x += 8) {
-    ctx.fillRect(x, ry + rh / 2 - 2, 4, 4);
-  }
-  // Fringe
-  ctx.fillStyle = PAL.n;
-  for (let x = rx + 2; x < rx + rw - 2; x += 4) {
-    ctx.fillRect(x, ry - 2, 2, 2);
-    ctx.fillRect(x, ry + rh, 2, 2);
   }
 }
 
@@ -187,37 +99,37 @@ function paintBackdrop(ctx) {
 export class PixelRoom {
   /**
    * @param {HTMLCanvasElement} canvas
-   * @param {(pos: {x:number,y:number,d:number,moving:boolean}) => void} onMove
-   *        called at most ~10×/sec while walking, and once on stop
+   * @param {{onMove: Function, onPlace: Function, onRemove: Function}} hooks
    */
-  constructor(canvas, onMove) {
+  constructor(canvas, hooks = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d", { alpha: false });
     this.ctx.imageSmoothingEnabled = false;
-    this.onMove = onMove;
+    this.onMove = hooks.onMove || (() => {});
+    this.onPlace = hooks.onPlace || (() => {});
+    this.onRemove = hooks.onRemove || (() => {});
 
-    this.people = new Map(); // id → {x, y, d, moving, name, pal, frames, step, tx, ty}
+    this.people = new Map();
     this.meId = null;
     this.keys = new Set();
-    this.target = null; // click-to-walk destination
+    this.target = null;
     this.lastSent = 0;
     this.phase = "focus";
     this.running = false;
     this.raf = null;
     this.last = 0;
 
-    // Backdrop never changes, so paint it once into an offscreen canvas and
-    // blit it each frame instead of redrawing a few thousand rects at 60fps.
+    this.layout = DEFAULT_LAYOUT;
+    this.editing = false;
+    this.tool = "desk"; // catalogue id, or "erase"
+    this.hover = null;
+
     this.bg = document.createElement("canvas");
     this.bg.width = ROOM_W;
     this.bg.height = ROOM_H;
-    const bgx = this.bg.getContext("2d");
-    bgx.imageSmoothingEnabled = false;
-    paintBackdrop(bgx);
-    for (const item of FURNITURE) {
-      if (item.art === CAT) continue; // drawn with the people, so it can overlap
-      blit(bgx, item.art, item.x, item.y);
-    }
+    this.bgx = this.bg.getContext("2d");
+    this.bgx.imageSmoothingEnabled = false;
+    this.bake();
 
     this.bindInput();
     this.resize();
@@ -232,14 +144,44 @@ export class PixelRoom {
     removeEventListener("resize", this._rs);
   }
 
+  /* --- layout --- */
+
+  /** Re-draw the room's furniture into the offscreen canvas. */
+  bake() {
+    paintBackdrop(this.bgx);
+    for (const item of this.layout) {
+      if (CATALOGUE[item.i]) paintItem(this.bgx, item.i, item.x, item.y);
+    }
+  }
+
+  setLayout(layout) {
+    if (!Array.isArray(layout)) return;
+    this.layout = layout;
+    this.bake();
+  }
+
+  setEditing(on, tool) {
+    this.editing = on;
+    if (tool) this.tool = tool;
+    if (!on) this.hover = null;
+    this.canvas.style.cursor = on ? "crosshair" : "pointer";
+  }
+
+  /** Topmost item under a point — the last one placed wins. */
+  itemAt(x, y) {
+    for (let k = this.layout.length - 1; k >= 0; k--) {
+      const it = this.layout[k];
+      const { w, h } = itemSize(it.i);
+      if (x >= it.x && x < it.x + w && y >= it.y && y < it.y + h) return k;
+    }
+    return -1;
+  }
+
   /* --- sizing: integer scale only, so pixels stay square --- */
 
   resize() {
-    // Measure the stage, not the immediate parent: the frame is sized *by*
-    // the canvas, so asking it how much room there is answers itself.
     const host = this.canvas.closest(".scene") || this.canvas.parentElement;
     const avail = host.getBoundingClientRect().width || window.innerWidth;
-    // Leave the clock, controls and rail their share of the height.
     const budget = Math.max(ROOM_H, window.innerHeight - 300);
     const scale = Math.max(1, Math.floor(Math.min(avail / ROOM_W, budget / ROOM_H)));
     this.scale = scale;
@@ -252,6 +194,11 @@ export class PixelRoom {
 
   /* --- input --- */
 
+  pointAt(e) {
+    const r = this.canvas.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / this.scale, y: (e.clientY - r.top) / this.scale };
+  }
+
   bindInput() {
     const KEYS = {
       ArrowUp: "u", KeyW: "u",
@@ -261,13 +208,12 @@ export class PixelRoom {
     };
 
     this._kd = (e) => {
-      // Never steal keys from the settings fields or the name dialog.
       if (e.target.matches?.("input, textarea, select")) return;
       const k = KEYS[e.code];
       if (!k) return;
       e.preventDefault();
       this.keys.add(k);
-      this.target = null; // keyboard overrides click-to-walk
+      this.target = null;
     };
     this._ku = (e) => {
       const k = KEYS[e.code];
@@ -281,12 +227,27 @@ export class PixelRoom {
     addEventListener("blur", this._blur);
     addEventListener("resize", this._rs);
 
-    // Click or tap a spot to walk there — the only way in on a phone.
     this.canvas.addEventListener("pointerdown", (e) => {
-      const r = this.canvas.getBoundingClientRect();
-      const x = (e.clientX - r.left) / this.scale;
-      const y = (e.clientY - r.top) / this.scale;
-      this.target = { x, y: Math.max(FLOOR_TOP + FOOT_H + 2, y) };
+      const p = this.pointAt(e);
+      if (!this.editing) {
+        this.target = { x: p.x, y: Math.max(FLOOR_TOP + 8, p.y) };
+        return;
+      }
+      if (this.tool === "erase") {
+        const k = this.itemAt(p.x, p.y);
+        if (k >= 0) this.onRemove(k);
+        return;
+      }
+      const { w, h } = itemSize(this.tool);
+      this.onPlace(this.tool, snap(p.x - w / 2), snap(p.y - h / 2));
+    });
+
+    this.canvas.addEventListener("pointermove", (e) => {
+      if (!this.editing) return;
+      this.hover = this.pointAt(e);
+    });
+    this.canvas.addEventListener("pointerleave", () => {
+      this.hover = null;
     });
   }
 
@@ -296,7 +257,6 @@ export class PixelRoom {
     this.meId = id;
   }
 
-  /** Reconcile with the room's member list; keeps positions for those staying. */
   syncMembers(members) {
     const seen = new Set();
     members.forEach((m, i) => {
@@ -306,7 +266,7 @@ export class PixelRoom {
         existing.name = m.name;
         if (existing.icon !== m.icon) {
           existing.icon = m.icon;
-          existing.frames = null; // force the walk cycle to rebuild
+          existing.frames = null;
         }
         return;
       }
@@ -326,12 +286,9 @@ export class PixelRoom {
     for (const id of [...this.people.keys()]) if (!seen.has(id)) this.people.delete(id);
   }
 
-  /** A position update for somebody else. */
   setPosition(id, x, y, d, moving) {
     const p = this.people.get(id);
     if (!p || id === this.meId) return;
-    // Store as a target and glide toward it, so 10 updates/sec still look
-    // like smooth walking at 60fps.
     p.tx = x;
     p.ty = y;
     p.d = d;
@@ -387,13 +344,9 @@ export class PixelRoom {
       if (moving) {
         const len = Math.hypot(dx, dy) || 1;
         const step = SPEED * dt;
-        const nx = me.x + (dx / len) * step;
-        const ny = me.y + (dy / len) * step;
-        // Separate axes so you slide along a desk instead of sticking to it.
-        if (!blocked(nx, me.y)) me.x = nx;
-        else if (this.target) this.target = null;
-        if (!blocked(me.x, ny)) me.y = ny;
-        else if (this.target) this.target = null;
+        const next = clampToRoom(me.x + (dx / len) * step, me.y + (dy / len) * step);
+        me.x = next.x;
+        me.y = next.y;
 
         if (dy > 0) me.d = 0;
         else if (dy < 0) me.d = 2;
@@ -414,7 +367,6 @@ export class PixelRoom {
       }
     }
 
-    // Everyone else glides toward their last reported position.
     for (const [id, p] of this.people) {
       if (id === this.meId) continue;
       const dx = p.tx - p.x;
@@ -426,7 +378,6 @@ export class PixelRoom {
         p.step = 0;
         continue;
       }
-      // Catch up over ~120ms; snap if we are badly behind (tab was hidden).
       const k = dist > 40 ? 1 : Math.min(1, dt / 0.12);
       p.x += dx * k;
       p.y += dy * k;
@@ -438,26 +389,15 @@ export class PixelRoom {
     const ctx = this.ctx;
     ctx.drawImage(this.bg, 0, 0);
 
-    const cat = FURNITURE.find((f) => f.art === CAT);
-
-    // Painter's algorithm: lower on screen draws later, so it overlaps.
-    const drawables = [...this.people.values()].map((p) => ({ p, y: p.y }));
-    drawables.push({ cat, y: cat.y + spriteSize(CAT).h });
-    drawables.sort((a, b) => a.y - b.y);
-
-    for (const item of drawables) {
-      if (item.cat) {
-        blit(ctx, CAT, item.cat.x, item.cat.y);
-        continue;
-      }
-      this.drawPerson(ctx, item.p);
-    }
+    // People draw over the furniture, lower ones last so they overlap.
+    const sorted = [...this.people.values()].sort((a, b) => a.y - b.y);
+    for (const p of sorted) this.drawPerson(ctx, p);
 
     this.tint(ctx);
+    if (this.editing) this.drawEditOverlay(ctx);
   }
 
   drawPerson(ctx, p) {
-    // Animals have one pose and face the viewer; the human has three facings.
     const icon = iconById(p.icon);
     const animal = Boolean(icon.sprite);
     const base = animal ? icon.sprite : FACINGS[p.d];
@@ -472,14 +412,37 @@ export class PixelRoom {
     const x = Math.round(p.x - w / 2);
     const y = Math.round(p.y - h);
 
-    // Soft contact shadow so people sit on the floor rather than float.
     ctx.fillStyle = "rgba(0,0,0,0.18)";
     ctx.fillRect(x + 2, p.y - 2, w - 4, 2);
 
     blit(ctx, frame, x, y, tint, flip);
   }
 
-  /** Phase colour as room light: warm and low on focus, bright on a break. */
+  /** Grid and a preview of what you are about to put down. */
+  drawEditOverlay(ctx) {
+    ctx.fillStyle = "rgba(255,255,255,0.07)";
+    for (let x = 0; x < ROOM_W; x += GRID) ctx.fillRect(x, 0, 1, ROOM_H);
+    for (let y = 0; y < ROOM_H; y += GRID) ctx.fillRect(0, y, ROOM_W, 1);
+    if (!this.hover) return;
+
+    if (this.tool === "erase") {
+      const k = this.itemAt(this.hover.x, this.hover.y);
+      if (k < 0) return;
+      const it = this.layout[k];
+      const { w, h } = itemSize(it.i);
+      ctx.fillStyle = "rgba(200,60,50,0.35)";
+      ctx.fillRect(it.x, it.y, w, h);
+      return;
+    }
+
+    const { w, h } = itemSize(this.tool);
+    const x = snap(this.hover.x - w / 2);
+    const y = snap(this.hover.y - h / 2);
+    ctx.globalAlpha = 0.6;
+    paintItem(ctx, this.tool, x, y);
+    ctx.globalAlpha = 1;
+  }
+
   tint(ctx) {
     const wash =
       this.phase === "focus"
@@ -490,7 +453,6 @@ export class PixelRoom {
     ctx.fillStyle = wash;
     ctx.fillRect(0, 0, ROOM_W, ROOM_H);
 
-    // A vignette keeps the eye on the middle of the room.
     const g = ctx.createRadialGradient(ROOM_W / 2, ROOM_H / 2, ROOM_H * 0.35, ROOM_W / 2, ROOM_H / 2, ROOM_H * 0.95);
     g.addColorStop(0, "rgba(0,0,0,0)");
     g.addColorStop(1, "rgba(0,0,0,0.33)");
@@ -498,7 +460,6 @@ export class PixelRoom {
     ctx.fillRect(0, 0, ROOM_W, ROOM_H);
   }
 
-  /** Screen positions for the DOM name labels, in CSS pixels. */
   labelPositions() {
     const out = [];
     for (const [id, p] of this.people) {
