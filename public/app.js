@@ -131,6 +131,27 @@ function go(roomId) {
    real choice, so the "asked" flag is stored separately from the name itself —
    otherwise an empty name would re-open the gate on every join. */
 
+/* This tab's own handle, so the server recognises a reconnect instead of
+   treating it as a second person arriving. Session-scoped on purpose: a
+   reload keeps your identity, while a second tab is genuinely a second
+   person — which is also how you test the room with yourself. */
+const CID_KEY = "pomo.cid";
+
+function clientId() {
+  try {
+    let v = sessionStorage.getItem(CID_KEY);
+    if (!v) {
+      v = crypto.randomUUID();
+      sessionStorage.setItem(CID_KEY, v);
+    }
+    return v;
+  } catch {
+    // No sessionStorage: fall back to a per-load id. Reconnects within this
+    // page still take over correctly; a reload starts fresh.
+    return (clientId.fallback ||= crypto.randomUUID());
+  }
+}
+
 const NAME_KEY = "pomo.name";
 const ASKED_KEY = "pomo.nameAsked";
 const ICON_KEY = "pomo.icon";
@@ -374,6 +395,7 @@ class Room {
     const q = new URLSearchParams();
     if (this.name) q.set("name", this.name);
     if (this.icon && this.icon !== "person") q.set("icon", this.icon);
+    q.set("cid", clientId());
     const qs = q.toString() ? `?${q}` : "";
     const ws = new WebSocket(`${proto}//${location.host}/api/room/${encodeURIComponent(this.id)}${qs}`);
     this.ws = ws;

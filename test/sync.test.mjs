@@ -157,6 +157,42 @@ const REFRESH_ROOM = freshRoomUrl();
   await wait(300);
 }
 
+// ---- a reconnect is not a second person ----
+// The bug this guards: every socket used to mint a fresh identity, so when
+// somebody reloaded (or their connection dropped and the server had not yet
+// noticed) everyone else saw them twice until the dead socket was reaped.
+{
+  const base = freshRoomUrl();
+  const cid = "tab-aaaaaaaa-bbbb-cccc";
+  const obs = await client("OBS", `${base}?name=Observer&cid=tab-zzzzzzzz`);
+  const one = await client("A1", `${base}?name=Alex&cid=${cid}`);
+  await wait(500);
+  const names = () => (obs.last?.members || []).map((m) => m.name).sort().join(",");
+  check("two people before the reconnect", names() === "Alex,Observer", names());
+  const firstId = one.msgs.find((m) => m.type === "welcome").you.id;
+
+  // Reconnect without closing the first socket — the real-world case.
+  const two = await client("A2", `${base}?name=Alex&cid=${cid}`);
+  await wait(900);
+  check("reconnect does not duplicate the person", names() === "Alex,Observer", names());
+  check("the replaced socket stops counting", one.ws.readyState >= 2, `readyState ${one.ws.readyState}`);
+  check("identity survives the reconnect", two.msgs.find((m) => m.type === "welcome").you.id === firstId);
+  check("no spurious leave is logged", !JSON.stringify(obs.last.log).includes("Alex left"));
+  check("the tab's cid is never broadcast", !JSON.stringify(obs.last.members).includes("tab-"), JSON.stringify(obs.last.members));
+
+  // A different tab is still a different person.
+  const sam = await client("S", `${base}?name=Sam&cid=tab-ssssssss`);
+  await wait(600);
+  check("a different tab is a different person", names() === "Alex,Observer,Sam", names());
+
+  two.ws.close();
+  await wait(700);
+  check("a genuine departure still removes them", names() === "Observer,Sam", names());
+  obs.ws.close();
+  sam.ws.close();
+  await wait(300);
+}
+
 // alarm-driven phase rollover (1 minute is the shortest allowed phase)
 if (process.env.SLOW) {
   a.ws.send(JSON.stringify({ type: "settings", settings: { focus: 1, autoStart: true } }));

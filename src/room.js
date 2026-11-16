@@ -55,6 +55,12 @@ const MAX_NAME = 24;
 const ICON_IDS = ["person", "cat", "dog", "fox", "bunny", "bear", "frog", "owl", "penguin"];
 const cleanIcon = (raw) => (ICON_IDS.includes(raw) ? raw : null);
 
+/**
+ * A browser tab's own id, used to recognise a reconnect. Never broadcast:
+ * knowing someone's cid would let you take over their place in the room.
+ */
+const cleanCid = (raw) => (typeof raw === "string" && /^[A-Za-z0-9-]{8,64}$/.test(raw) ? raw : null);
+
 /** Logical pixel size of the room; positions are clamped to it. */
 const ROOM_W = 320;
 const ROOM_H = 192;
@@ -135,20 +141,31 @@ export class TimerRoom {
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
 
-    this.state.guestSeq += 1;
-    // A name chosen before connecting arrives on the URL, so nobody in the
-    // room ever sees a flash of "Guest 4" before it resolves.
+    // A reconnect is not a new person. Without this, every socket minted a
+    // fresh identity, so a reload or a dropped connection showed up twice in
+    // everyone else's room until the dead socket was finally noticed — which
+    // over a real network can take a while.
+    const cid = cleanCid(url.searchParams.get("cid"));
+    const takeover = cid ? this.evictPrevious(cid) : null;
+
+    if (!takeover) this.state.guestSeq += 1;
     const member = {
-      id: crypto.randomUUID().slice(0, 8),
-      name: cleanName(url.searchParams.get("name")) || `Guest ${this.state.guestSeq}`,
-      icon: cleanIcon(url.searchParams.get("icon")) || "person",
+      id: takeover ? takeover.id : crypto.randomUUID().slice(0, 8),
+      cid,
+      name:
+        cleanName(url.searchParams.get("name")) ||
+        takeover?.name ||
+        `Guest ${this.state.guestSeq}`,
+      icon: cleanIcon(url.searchParams.get("icon")) || takeover?.icon || "person",
     };
     // Hibernation-safe: the attachment survives the DO being evicted.
     server.serializeAttachment(member);
     this.ctx.acceptWebSocket(server);
     await this.save();
 
-    this.addLog(`${member.name} joined`);
+    // Reusing the id keeps their position and their place in the room, so a
+    // reload is invisible to everyone else — no "left", no "joined".
+    if (!takeover) this.addLog(`${member.name} joined`);
     this.broadcast();
     server.send(
       JSON.stringify({
@@ -277,6 +294,12 @@ export class TimerRoom {
 
   async webSocketClose(ws) {
     const me = ws.deserializeAttachment();
+    // A socket we replaced ourselves: its identity already moved to the new
+    // connection, so there is nothing to announce and nobody has left.
+    if (this.isZombie(ws, me)) {
+      this.zombies?.delete(ws);
+      return;
+    }
     if (me) {
       this.addLog(`${me.name} left`);
       this.positions?.delete(me.id);
@@ -433,7 +456,7 @@ export class TimerRoom {
 
     const payload = JSON.stringify({ type: "pos", id: me.id, ...pos });
     for (const other of this.ctx.getWebSockets()) {
-      if (other === ws) continue;
+      if (other === ws || this.zombies?.has(other)) continue;
       try {
         other.send(payload);
       } catch {
@@ -455,12 +478,53 @@ export class TimerRoom {
     this.state.log = this.state.log.slice(0, MAX_LOG);
   }
 
+  /**
+   * Close any socket already held by this browser tab and hand its identity
+   * to the new one. Evicted sockets are parked in `zombies` so they stop
+   * counting as members the moment they are replaced, rather than when their
+   * close event eventually lands.
+   */
+  evictPrevious(cid) {
+    let previous = null;
+    for (const old of this.ctx.getWebSockets()) {
+      const att = old.deserializeAttachment();
+      if (!att || att.cid !== cid || att.zombie) continue;
+      previous = att;
+      this.zombies ||= new WeakSet();
+      this.zombies.add(old);
+      // The WeakSet is memory, which a hibernation would forget; the
+      // attachment is not. Mark both so an evicted socket can never come
+      // back as a second copy of somebody.
+      try {
+        old.serializeAttachment({ ...att, zombie: true });
+      } catch {
+        /* closing already */
+      }
+      try {
+        old.close(4000, "replaced by a newer connection");
+      } catch {
+        /* already gone */
+      }
+    }
+    return previous;
+  }
+
+  /** Evicted sockets stop counting the moment they are replaced. */
+  isZombie(ws, att) {
+    if (this.zombies?.has(ws)) return true;
+    return (att || ws.deserializeAttachment())?.zombie === true;
+  }
+
   members(exclude) {
-    return this.ctx
-      .getWebSockets()
-      .filter((ws) => ws !== exclude)
-      .map((ws) => ws.deserializeAttachment())
-      .filter(Boolean);
+    const out = [];
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === exclude) continue;
+      const att = ws.deserializeAttachment();
+      if (!att || this.isZombie(ws, att)) continue;
+      // cid is this tab's secret handle on its identity — never send it out.
+      out.push({ id: att.id, name: att.name, icon: att.icon });
+    }
+    return out;
   }
 
   snapshot(exclude) {
@@ -484,7 +548,7 @@ export class TimerRoom {
     const extra = exclude ? {} : excludeOrExtra || {};
     const payload = JSON.stringify({ type: "state", ...this.snapshot(exclude), ...extra });
     for (const ws of this.ctx.getWebSockets()) {
-      if (ws === exclude) continue;
+      if (ws === exclude || this.zombies?.has(ws)) continue;
       try {
         ws.send(payload);
       } catch {
