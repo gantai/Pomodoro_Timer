@@ -37,11 +37,11 @@ export const PAL = {
   // upholstery
   c: "#3f4654",
   v: "#5a6474",
-  // sofa fabric — browner and softer than the wood, so the two don't blur
-  u: "#6b4030",
-  U: "#8a5740",
-  V: "#a97252",
-  X: "#c89272",
+  // tan leather — warmer and lighter than the wood, so the two don't blur
+  u: "#8a5530",
+  U: "#a9703f",
+  V: "#c28a52",
+  X: "#dcab74",
 
   // greens
   g: "#4a8a50",
@@ -156,28 +156,29 @@ export const STOOL = [
  * the commit if it needs redrawing.
  */
 export const SOFA = [
-  "..000000000000000000000000000000000000..",
-  ".0UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU0.",
-  "0UUUUUUUUUuuuuuuuuuUUUuuuuuuuuuUUUUUUUU0",
-  "0UUUUUUUUuuVVVVVVVuuUuuVVVVVVVuuUUUUUUU0",
-  "0UUUUUUUUuVVVVVVVVVuUuVVVVVVVVVuUUUUUUU0",
-  "0UUUUUUUUuuVVVVVVVuuUuuVVVVVVVuuUUUUUUU0",
-  "0UUUUUUUUUuuuuuuuuuUUUuuuuuuuuuUUUUUUUU0",
-  "0UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU0",
-  "0UUUUUUUUUUVVVVVVVUUUUUVVVVVVVUUUUUUUUU0",
-  "0UUUUUUUUUVVXXXXXVVUUUVVXXXXXVVUUUUUUUU0",
-  "0UUUUUUUUVVXooooXXVVUVVXXXXXXXVVUUUUUUU0",
-  "0UUUUUUUUVXooyyooXXVUVXXXXXXXXXVUUUUUUU0",
-  "0UUUUUUUUVXoyyyyoXXVUVXXXXXXXXXVUUUUUUU0",
-  "0UUUUUUUUVXooyyooXXVUVXXXXXXXXXVUUUUUUU0",
-  "0UUUUUUUUVVXooooXXVVUVVXXXXXXXVVUUUUUUU0",
-  "0UUUUUUUUUVVXXXXXVVUUUVVXXXXXVVUUUUUUUU0",
-  ".0UUUUUUUUUVVVVVVVUUUUUVVVVVVVUUUUUUUU0.",
-  "..0UUU0000000000000000000000000000UUU0..",
-  ".0UUU0............................0UUU0.",
-  "0UUUUU0..........................0UUUUU0",
-  "0UUUUU0..........................0UUUUU0",
-  ".00000............................00000.",
+  "..0000000000000000000000000000000000000000000000..",
+  ".0UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU0.",
+  "0UXXUUUuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuUUUXXU0",
+  "0XXXXUuXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXuUXXXX0",
+  "0VXXVUuVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVuUVXXV0",
+  "0VVVVUuVVVuVVVVuVVVVuVVVVuVVVVuVVVVuVVVVuVVuUVVVV0",
+  "0VVVVUuuVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVuuUVVVV0",
+  "0VVVVUUuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuUUVVVV0",
+  "0VVVVUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUVVVV0",
+  "0VVVVUuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuUVVVV0",
+  "0VVVVUuXXXXXXXXXXXuXXXXXXXXXXXXuXXXXXXXXXXXuUVVVV0",
+  "0VVVVUuXXXXXXXXXXXuXXXXXXXXXXXXuXXXXXXXXXXXuUVVVV0",
+  "0VVVVUuXXXXXXXXXXXuXXXXXXXXXXXXuXXXXXXXXXXXuUVVVV0",
+  "0VVVVUuXXXXXXXXXXXuXXXXXXXXXXXXuXXXXXXXXXXXuUVVVV0",
+  "0VVVVUuXXXXXXXXXXXuXXXXXXXXXXXXuXXXXXXXXXXXuUVVVV0",
+  "0VVVVUuVVVVVVVVVVVuVVVVVVVVVVVVuVVVVVVVVVVVuUVVVV0",
+  ".0VVUUuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuUUVV0.",
+  "..0UU0000000000000000000000000000000000000000UU0..",
+  ".0UU0........................................0UU0.",
+  "0UUUU0......................................0UUUU0",
+  ".0000........................................0000.",
+  ".eee..........................................eee.",
+  ".eee..........................................eee.",
 ];
 
 export const SHELF = [
@@ -629,7 +630,7 @@ export const DEFAULT_LAYOUT = [
   { i: "plant", x: 278, y: 146 },
   { i: "shelf", x: 0, y: 160 },
   { i: "shelf", x: 288, y: 160 },
-  { i: "sofa", x: 140, y: 158 },
+  { i: "sofa", x: 135, y: 156 },
   { i: "cat", x: 148, y: 128 },
 ];
 

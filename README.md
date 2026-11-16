@@ -291,9 +291,12 @@ difference between about 45 lines of art and about 400.
 The sofa is the one sprite not typed out by hand: it is all clipped corners
 and a derived outline, and keeping that as literal text means recounting
 every row below any change. `tools/draw-sofa.mjs` draws it as shapes and
-prints the array to paste back in. Clipped corners turn out to be the whole
-trick for upholstery — square ones read as joinery however the thing is
-coloured.
+prints the array to paste back in. What makes a chesterfield legible from
+directly above, roughly in order: clipped corners (square ones read as
+joinery however the thing is coloured), three cushions rather than two (two
+is a bench), slim arms (chunky ones put the box back), one row of buttons on
+the back, and tan lit along the top edge, since leather has a sheen that
+matte fabric does not.
 
 The room's fixed parts — floor, walls, the light for the current phase — and
 its furniture are baked together into an offscreen canvas and drawn as a
