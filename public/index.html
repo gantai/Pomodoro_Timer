@@ -109,6 +109,7 @@
               <button id="reset" class="btn btn--lg" data-i18n="ctl.reset" data-i18n-title="ctl.resetTitle" title="Restart this phase">Reset</button>
             </div>
             <div class="track"><div id="progress" class="track__fill"></div></div>
+            <p id="meta" class="meta">—</p>
             <p class="hint" data-i18n="ctl.shared">Start, pause and skip are shared — everyone in the room sees them</p>
           </div>
 
@@ -116,10 +117,7 @@
             <div class="scene__frame" id="sceneFrame">
               <canvas id="pixelRoom" width="320" height="192" aria-label="The group's pixel room"></canvas>
               <div class="tags" id="tags" aria-hidden="true"></div>
-              <div class="hud">
-                <div id="time" class="time">--:--</div>
-                <div id="meta" class="meta">—</div>
-              </div>
+              <div class="wallclock"><span id="time" class="time">--:--</span></div>
             </div>
             <p class="hint hint--move" id="moveHint" data-i18n-html="room.moveHint">Arrow keys or <kbd>WASD</kbd> to walk · or click where you want to go</p>
 
@@ -142,9 +140,28 @@
               <button id="undoWall" class="linkbtn" type="button" data-i18n="wall.undo" hidden>Undo clear</button>
               <button id="clearWall" class="linkbtn" type="button" data-i18n="wall.clear">Clear the wall</button>
             </p>
-            <canvas id="wallCanvas" class="wallcanvas" width="320" height="72" aria-label="The group's doodle wall"></canvas>
+            <div class="wallwrap">
+              <canvas id="wallCanvas" class="wallcanvas" width="320" height="72" aria-label="The group's doodle wall"></canvas>
+              <div id="wallCursor" class="wallcursor" hidden></div>
+            </div>
             <div class="pens" id="pens"></div>
           </section>
+
+        <!-- 留言板 -->
+        <section class="board">
+          <h2 class="board__title">
+            <span data-i18n="board.title">Message board</span>
+            <span class="pill" id="boardNew" hidden></span>
+          </h2>
+          <ul class="board__list" id="boardList"></ul>
+          <div class="board__compose">
+            <textarea id="noteInput" maxlength="280" rows="2" data-i18n-ph="board.placeholder" placeholder="Leave a note for the room…"></textarea>
+            <div class="board__row">
+              <p class="fineprint" id="boardCount"></p>
+              <button id="postNote" class="btn btn--primary" type="button" data-i18n="board.post">Pin it</button>
+            </div>
+          </div>
+        </section>
 
           <div class="plainclock" id="plainClock" hidden>
             <div id="timePlain" class="time">--:--</div>
@@ -178,22 +195,6 @@
             </div>
             <p class="fineprint" data-i18n="rail.keepNote">Furniture, notes and the wall all stay until the room is deleted.</p>
             <button id="deleteBtn" class="linkbtn linkbtn--danger" type="button" data-i18n="rail.delete">Delete this room…</button>
-          </section>
-
-          <!-- 留言板 -->
-          <section class="panel panel--board">
-            <h2 class="panel__title">
-              <span data-i18n="board.title">Message board</span>
-              <span class="pill" id="boardNew" hidden></span>
-            </h2>
-            <ul class="board__list" id="boardList"></ul>
-            <div class="board__compose">
-              <textarea id="noteInput" maxlength="280" rows="2" data-i18n-ph="board.placeholder" placeholder="Leave a note for the room…"></textarea>
-              <div class="board__row">
-                <p class="fineprint" id="boardCount"></p>
-                <button id="postNote" class="btn btn--primary" type="button" data-i18n="board.post">Pin it</button>
-              </div>
-            </div>
           </section>
 
           <section class="panel">

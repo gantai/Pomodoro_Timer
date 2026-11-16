@@ -117,25 +117,41 @@ export const STANDDESK = [
 ];
 
 /**
- * The stool that goes with it: a saddle seat you perch on, one gas column, and
- * a domed base that rocks. Round where the wooden chair is square, so which is
- * which is clear at a glance.
+ * A desktop monitor. It replaces the sit-stand stool, which everybody read
+ * as a monitor anyway — a dark saddle on a silver column is exactly what a
+ * screen on a stand looks like from above, and arguing with that was going
+ * to lose. Rooms that already hold a stool get a monitor in its place.
  */
-export const STOOL = [
-  "....000000......",
-  "..00cccccc00....",
-  ".0cccccccccc0...",
-  ".0cvvvvvvvvc0...",
-  ".0cvvvvvvvvc0...",
-  ".0cccccccccc0...",
-  "..00cc00cc00....",
-  ".....0SS0.......",
-  ".....0SS0.......",
-  "...0SssssS0.....",
-  "..0ssssssss0....",
-  "..0sSSSSSSs0....",
-  "..0ssssssss0....",
-  "...00000000.....",
+export const MONITOR = [
+  "00000000000000000000",
+  "0SSSSSSSSSSSSSSSSSS0",
+  "0S0000000000000000S0",
+  "0S0bbbbbbbbbbbbbb0S0",
+  "0S0bbbbbbbbbbbbbb0S0",
+  "0S0bBBBBBBBBBBBbb0S0",
+  "0S0bbbbbbbbbbbbbb0S0",
+  "0S0bbbbbbbbbbbbbb0S0",
+  "0S0000000000000000S0",
+  "0SSSSSSSSSSSSSSSSSS0",
+  "00000000SSSS00000000",
+  ".......0SSSS0.......",
+  ".......0SSSS0.......",
+  "...0SSSSSSSSSSSS0...",
+  "...0ssssssssssss0...",
+  "...00000000000000...",
+];
+
+/** A rubber, for the doodle wall's eraser button. */
+export const ERASER = [
+  "...0000.....",
+  "..0WWWW00...",
+  ".0WWWWWW00..",
+  "0WWWWWWWWW0.",
+  "0RRRRRRRRRR0",
+  "0RRRRRRRRRR0",
+  "0rrrrrrrrrr0",
+  ".0rrrrrrrr0.",
+  "..00000000..",
 ];
 
 /**
@@ -583,7 +599,7 @@ export const CATALOGUE = {
   chair: { label: "Chair", art: CHAIR },
   sofa: { label: "Sofa", art: SOFA },
   standdesk: { label: "Sit-stand desk", art: STANDDESK },
-  stool: { label: "Sit-stand stool", art: STOOL },
+  monitor: { label: "Monitor", art: MONITOR },
   shelf: { label: "Shelf", art: SHELF },
   plant: { label: "Plant", art: PLANT },
   window: { label: "Window", art: WINDOW },
@@ -623,7 +639,7 @@ export const DEFAULT_LAYOUT = [
   { i: "desk", x: 168, y: 44 },
   { i: "chair", x: 184, y: 80 },
   { i: "standdesk", x: 240, y: 42 },
-  { i: "stool", x: 256, y: 80 },
+  { i: "chair", x: 256, y: 80 },
   { i: "chair", x: 64, y: 122 },
   { i: "chair", x: 240, y: 122 },
   { i: "plant", x: 16, y: 146 },

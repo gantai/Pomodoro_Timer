@@ -2,8 +2,8 @@
    The server owns the clock. We only render `endsAt - now`, corrected for the
    offset between this device's clock and the room's. */
 
-import { PixelRoom } from "./pixel/scene.js";
-import { ICONS, ICON_IDS, iconDataURL, ITEM_IDS, itemSize, paintItem } from "./pixel/art.js";
+import { PixelRoom, FLOOR_TOP } from "./pixel/scene.js";
+import { ICONS, ICON_IDS, iconDataURL, ITEM_IDS, itemSize, paintItem, ERASER, blit, spriteSize } from "./pixel/art.js";
 import { WALL_W, WALL_H, WALL_PENS, PEN_COUNT, blankWall, decodeWall } from "./pixel/wall.js";
 import { LANGS, t, ago, logLine, lang, setLang, initLang } from "./i18n.js";
 
@@ -420,7 +420,7 @@ class Room {
            </button>`,
       ).join("") +
       `<button type="button" class="tool tool--erase" role="radio" data-tool="erase" aria-checked="${chosen === "erase"}" title="${esc(t("dec.removeTitle"))}">
-         <span aria-hidden="true" style="font-size:20px;line-height:26px">⌫</span><span>${esc(t("dec.remove"))}</span>
+         <img src="${rubberIcon()}" alt="" /><span>${esc(t("dec.remove"))}</span>
        </button>`;
 
     for (const b of host.children) {
@@ -492,7 +492,9 @@ class Room {
             `<button type="button" class="pen" role="radio" data-pen="${i + 1}" aria-checked="${i === 0}" style="background:${colour}" aria-label="${esc(t("wall.pen"))} ${i + 1}"></button>`,
         )
         .join("") +
-      `<button type="button" class="pen pen--erase" role="radio" data-pen="0" aria-checked="false" title="${esc(t("wall.eraser"))}">⌫</button>
+      `<button type="button" class="pen pen--erase" role="radio" data-pen="0" aria-checked="false" title="${esc(t("wall.eraser"))}">
+         <img src="${rubberIcon()}" alt="${esc(t("wall.eraser"))}" />
+       </button>
        <span class="gap"></span>` +
       [1, 2, 4]
         .map(
@@ -508,6 +510,7 @@ class Room {
         for (const o of $("pens").querySelectorAll("[data-pen]")) {
           o.setAttribute("aria-checked", String(o === b));
         }
+        this._hideCursor();
       };
     }
     for (const b of $("pens").querySelectorAll("[data-nib]")) {
@@ -516,6 +519,7 @@ class Room {
         for (const o of $("pens").querySelectorAll("[data-nib]")) {
           o.setAttribute("aria-checked", String(o === b));
         }
+        this._hideCursor();
       };
     }
 
@@ -526,21 +530,38 @@ class Room {
       const s = r.width / WALL_W;
       return { x: Math.floor((e.clientX - r.left) / s), y: Math.floor((e.clientY - r.top) / s) };
     };
+    // You cannot aim an eraser whose edges you cannot see, and at nib 4 the
+    // difference between hitting a line and taking out the one beside it is
+    // three pixels. The box is the exact area the nib covers.
+    const cursor = $("wallCursor");
+    const showCursor = (p) => {
+      const scale = this.scene?.scale || 3;
+      const half = Math.floor(this.nib / 2);
+      cursor.hidden = false;
+      cursor.classList.toggle("wallcursor--erase", this.pen === 0);
+      cursor.style.width = `${this.nib * scale}px`;
+      cursor.style.height = `${this.nib * scale}px`;
+      cursor.style.left = `${(p.x - half) * scale}px`;
+      cursor.style.top = `${(p.y - half) * scale}px`;
+    };
+    this._hideCursor = () => (cursor.hidden = true);
+    c.onpointerenter = (e) => showCursor(at(e));
+    c.onpointerleave = () => this._hideCursor();
     c.onpointerdown = (e) => {
       c.setPointerCapture(e.pointerId);
       this.drawing = at(e);
       this.stroke(this.drawing, this.drawing);
     };
     c.onpointermove = (e) => {
-      if (!this.drawing) return;
       const p = at(e);
+      showCursor(p);
+      if (!this.drawing) return;
       this.stroke(this.drawing, p);
       this.drawing = p;
     };
     const stop = () => (this.drawing = null);
     c.onpointerup = stop;
     c.onpointercancel = stop;
-    c.onpointerleave = stop;
 
     this.flusher = setInterval(() => this.flushPaint(), 70);
     this._wallResize = () => this.sizeWall();
@@ -555,6 +576,7 @@ class Room {
     // which on a wide window with a small room made the clock bigger than
     // the room it was sitting on.
     $("sceneFrame").style.setProperty("--rs", scale);
+    $("sceneFrame").style.setProperty("--band", `${FLOOR_TOP * scale}px`);
     const c = $("wallCanvas");
     c.style.width = `${WALL_W * scale}px`;
     c.style.height = `${WALL_H * scale}px`;
@@ -1119,6 +1141,23 @@ function fmt(ms) {
 
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/** The eraser button's rubber, drawn rather than set in a glyph. */
+let rubberUrl = null;
+function rubberIcon() {
+  if (rubberUrl) return rubberUrl;
+  const { w, h } = spriteSize(ERASER);
+  const scale = 3;
+  const c = document.createElement("canvas");
+  c.width = w * scale;
+  c.height = h * scale;
+  const ctx = c.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.scale(scale, scale);
+  blit(ctx, ERASER, 0, 0);
+  rubberUrl = c.toDataURL();
+  return rubberUrl;
 }
 
 /** A furniture thumbnail for the palette, drawn from the same sprite data. */

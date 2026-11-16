@@ -22,7 +22,8 @@ export const ROOM_W = COLS * TILE; // 320
 export const ROOM_H = ROWS * TILE; // 192
 
 const WALL_ROWS = 2;
-const FLOOR_TOP = WALL_ROWS * TILE;
+/** The wallpaper band at the top. The clock is mounted inside it. */
+export const FLOOR_TOP = WALL_ROWS * TILE;
 const SPEED = 46; // logical px per second
 const GRID = 8; // placement snaps to half a tile
 

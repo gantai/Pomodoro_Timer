@@ -39,19 +39,20 @@ async function room(width, height, meta = false) {
 for (const [w, h] of [[1500, 1000], [1180, 900], [980, 820]]) {
   const p = await room(w, h, true);
   const r = await p.evaluate(() => {
-    const hud = document.querySelector(".hud").getBoundingClientRect();
+    const hud = document.querySelector(".wallclock").getBoundingClientRect();
     const can = document.getElementById("pixelRoom").getBoundingClientRect();
     return {
       cover: +((hud.width * hud.height) / (can.width * can.height)).toFixed(3),
       fits: hud.width <= can.width + 1 && hud.bottom <= can.bottom,
       rs: getComputedStyle(document.getElementById("sceneFrame")).getPropertyValue("--rs").trim(),
       meta: document.getElementById("meta").textContent,
+      metaOutside: !document.getElementById("sceneFrame").contains(document.getElementById("meta")),
       clock: Math.round(parseFloat(getComputedStyle(document.getElementById("time")).fontSize)),
       roomH: Math.round(can.height),
     };
   });
-  ck(`HUD stays inside the room at ${w}x${h}`, r.fits, JSON.stringify(r));
-  ck(`HUD covers under a quarter of the room at ${w}x${h}`, r.cover < 0.25, `${Math.round(r.cover * 100)}%`);
+  ck(`the clock stays inside the room at ${w}x${h}`, r.fits && r.metaOutside, JSON.stringify(r));
+  ck(`the clock covers under a tenth of the room at ${w}x${h}`, r.cover < 0.1, `${Math.round(r.cover * 100)}%`);
   ck(`clock scales with the room at ${w}x${h}`, r.clock < r.roomH * 0.22, `${r.clock}px on a ${r.roomH}px room`);
   await p.close();
 }
@@ -68,8 +69,13 @@ ck("clicking again shuts it", await p.evaluate(() => !document.getElementById("a
 
 // prefixed properties actually present in the served stylesheet
 const css = await (await p.request.get(B + "/styles.css")).text();
-for (const prop of ["-webkit-backdrop-filter", "-webkit-mask-image", "-webkit-appearance"]) {
-  ck(`stylesheet carries ${prop}`, css.includes(prop));
+// Every property Safari still wants prefixed must carry its -webkit- twin.
+// Written as "if it is used at all" rather than "it is used", so dropping a
+// blur later doesn't leave a test asserting the blur is still there.
+for (const prop of ["backdrop-filter", "mask-image", "appearance"]) {
+  const uses = (css.match(new RegExp(`(^|[;{\\s])${prop}\\s*:`, "g")) || []).length;
+  const prefixed = (css.match(new RegExp(`-webkit-${prop}\\s*:`, "g")) || []).length;
+  ck(`${prop} is prefixed wherever it is used`, uses === 0 || prefixed >= uses, `${prefixed} prefixed / ${uses} plain`);
 }
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");   // comments mention it on purpose
 ck("summary is not display:flex", !/\.fold > summary \{[^}]*display:\s*flex/s.test(bare));

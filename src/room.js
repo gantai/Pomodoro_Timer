@@ -96,7 +96,7 @@ const cleanCid = (raw) => (typeof raw === "string" && /^[A-Za-z0-9-]{8,64}$/.tes
 const SOCKET_STALE_MS = 150_000;
 
 /** Furniture people may place. Kept in step with public/pixel/art.js. */
-const ITEM_IDS = ["desk", "chair", "sofa", "standdesk", "stool", "shelf", "plant", "window", "clock", "cat", "rug"];
+const ITEM_IDS = ["desk", "chair", "sofa", "standdesk", "monitor", "shelf", "plant", "window", "clock", "cat", "rug"];
 const MAX_ITEMS = 80;
 
 /** The room everyone starts with. Kept in step with DEFAULT_LAYOUT there. */
@@ -114,7 +114,7 @@ const DEFAULT_LAYOUT = [
   { i: "desk", x: 168, y: 44 },
   { i: "chair", x: 184, y: 80 },
   { i: "standdesk", x: 240, y: 42 },
-  { i: "stool", x: 256, y: 80 },
+  { i: "chair", x: 256, y: 80 },
   { i: "chair", x: 64, y: 122 },
   { i: "chair", x: 240, y: 122 },
   { i: "plant", x: 16, y: 146 },
@@ -217,6 +217,10 @@ export class TimerRoom {
         return;
       }
       this.state = { ...defaultState(), ...stored };
+      // The sit-stand stool is now a monitor, which is what everyone read it
+      // as. Rooms saved before that still hold "stool" items; an id no longer
+      // in the catalogue would simply stop being drawn, so rewrite them.
+      for (const item of this.state.layout) if (item.i === "stool") item.i = "monitor";
       const [notes, wall, wallPrev] = await Promise.all([
         ctx.storage.get("notes"),
         ctx.storage.get("wall"),

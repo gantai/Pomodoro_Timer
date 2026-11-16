@@ -182,7 +182,7 @@ kbd {
 }
 body.paused .time { color: var(--ink-soft); }
 
-.meta { margin-top: 18px; font-size: 15px; color: var(--ink-faint); }
+.meta { margin: 0; font-size: 14px; color: var(--ink-faint); }
 
 .track {
   margin: 0;
@@ -577,28 +577,35 @@ body.paused .time { color: var(--ink-soft); }
 }
 .tag--me { background: var(--accent); color: #fff; }
 
-.hud {
+/* The clock hangs on the room's back wall rather than floating over the
+   floor. --band is the wallpaper strip's height in screen pixels and --rs the
+   room's pixel scale, both set by the client, so the board sits inside the
+   wall at any size. The phase and round line moved up to the timer cluster:
+   it is the part that made the old overlay grow until it hid the furniture. */
+.wallclock {
   position: absolute;
-  top: 10px;
+  top: calc(var(--band, 96px) * 0.14);
   left: 50%;
   transform: translateX(-50%);
-  text-align: center;
-  line-height: 1;
-  max-width: 92%;
-  padding: calc(var(--rs, 3) * 2px) calc(var(--rs, 3) * 5px);
-  border-radius: 10px;
-  background: rgba(16, 13, 10, 0.5);
-  -webkit-backdrop-filter: blur(2px);
-  backdrop-filter: blur(2px);
+  height: calc(var(--band, 96px) * 0.72);
+  min-width: calc(var(--band, 96px) * 2.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 calc(var(--rs, 3) * 4px);
+  background: #241d16;
+  border: calc(var(--rs, 3) * 1px) solid #15100c;
+  border-radius: calc(var(--rs, 3) * 1.5px);
+  box-shadow: 0 calc(var(--rs, 3) * 1px) 0 rgba(0, 0, 0, 0.35);
   pointer-events: none;
 }
-.hud .time {
-  font-size: calc(var(--rs, 3) * 17px);
-  color: #fdfaf3;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+.wallclock .time {
+  font-size: calc(var(--band, 96px) * 0.44);
+  line-height: 1;
+  color: #f4c98a;
+  text-shadow: 0 0 calc(var(--rs, 3) * 3px) rgba(244, 201, 138, 0.45);
 }
-body.paused .hud .time { color: #cfc6b6; }
-.hud .meta { margin-top: 5px; font-size: max(10px, calc(var(--rs, 3) * 4px)); color: #d8cfc0; }
+body.paused .wallclock .time { color: #a08a6b; }
 
 .hint--move { margin-top: 12px; }
 
@@ -645,7 +652,7 @@ body.paused .hud .time { color: #cfc6b6; }
 .tool:hover { border-color: var(--accent); }
 .tool[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .tool[aria-checked="true"] span { color: var(--accent); }
-.tool--erase { font-size: 18px; line-height: 26px; }
+.tool--erase img { width: 24px; height: 18px; object-fit: contain; }
 
 .decorate__acts {
   display: flex;
@@ -828,6 +835,20 @@ body.paused .hud .time { color: #cfc6b6; }
 }
 .wallstrip__head .spacer { flex: 1; }
 .wallstrip__head .linkbtn { padding: 0; font-size: 11.5px; letter-spacing: 0; text-transform: none; }
+.wallwrap { position: relative; width: -moz-fit-content; width: fit-content; margin: 0 auto; }
+/* You cannot aim an eraser you cannot see the edges of. The box is the exact
+   area the nib will cover, not an approximation of it. */
+.wallcursor {
+  position: absolute;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.75), inset 0 0 0 1px rgba(255, 255, 255, 0.9);
+  border-radius: 1px;
+}
+.wallcursor[hidden] { display: none; }
+.wallcursor--erase {
+  background: rgba(255, 255, 255, 0.45);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.8), inset 0 0 0 1px rgba(255, 255, 255, 0.95);
+}
 .wallcanvas {
   display: block;
   margin: 0 auto;
@@ -860,7 +881,8 @@ body.paused .hud .time { color: #cfc6b6; }
 }
 .pen:hover { border-color: var(--line-strong); }
 .pen[aria-checked="true"] { border-color: var(--ink); transform: scale(1.12); }
-.pen--erase { background: var(--surface); font-size: 12px; line-height: 20px; color: var(--ink-soft); }
+.pen--erase { background: var(--surface); display: grid; place-items: center; }
+.pen--erase img { width: 18px; height: 13px; image-rendering: pixelated; display: block; }
 .pens .gap { width: 10px; }
 .nib {
   width: 28px;
@@ -911,20 +933,41 @@ body.paused .hud .time { color: #cfc6b6; }
 .btn--danger { background: #b0372c; border-color: #b0372c; color: #fff; }
 .btn--danger:hover { background: #992f25; border-color: #992f25; }
 
-/* ═══════════ 留言板 · the message board ═══════════ */
+/* ═══════════ 留言板 · the message board ═══════════
+   Under the doodle wall and as wide as the room, so notes are read at a
+   comfortable measure instead of a 300px rail column. Two columns when
+   there is room for them. */
 
-.panel--board { display: flex; flex-direction: column; min-height: 0; max-height: 46vh; }
+.board {
+  margin: 22px auto 0;
+  width: 100%;
+  padding: 16px 18px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: left;
+}
+.board__title {
+  margin: 0 0 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
 .board__list {
   list-style: none;
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   padding: 0;
+  max-height: 210px;
   overflow-y: auto;
-  flex: 1 1 auto;
-  min-height: 48px;
   display: grid;
-  gap: 7px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 8px;
   align-content: start;
-  /* the list is scrolled, so fade the cut rather than slicing a note in half */
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent);
   mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent);
 }
@@ -932,17 +975,17 @@ body.paused .hud .time { color: #cfc6b6; }
 .note {
   display: grid;
   grid-template-columns: 20px 1fr auto;
-  gap: 8px;
+  gap: 9px;
   align-items: start;
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 8px 10px;
+  padding: 9px 11px;
 }
 .note img { width: 18px; height: 18px; image-rendering: pixelated; margin-top: 2px; }
 .note__who { font-size: 11px; color: var(--ink-faint); margin-bottom: 2px; }
 .note__who b { color: var(--ink); font-weight: 600; font-size: 12px; }
-.note__text { font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; text-align: left; }
+.note__text { font-size: 13.5px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 .note__x {
   -webkit-appearance: none;
   appearance: none;
@@ -958,23 +1001,23 @@ body.paused .hud .time { color: #cfc6b6; }
 }
 .note:hover .note__x, .note__x:focus-visible { opacity: 1; }
 .note__x:hover { color: var(--accent); }
-.board__empty { font-size: 12.5px; color: var(--ink-faint); text-align: left; padding: 2px 0 6px; }
-.board__compose { flex: none; }
+.board__empty { font-size: 12.5px; color: var(--ink-faint); padding: 2px 0 6px; }
+.board__compose { display: flex; gap: 10px; align-items: flex-end; }
 .board__compose textarea {
-  width: 100%;
+  flex: 1;
   resize: vertical;
   font: inherit;
-  font-size: 13px;
-  padding: 8px 10px;
+  font-size: 13.5px;
+  padding: 9px 11px;
   border: 1px solid var(--line-strong);
   border-radius: 9px;
-  background: var(--surface);
+  background: var(--bg);
   color: var(--ink);
 }
 .board__compose textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-.board__row { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
-.board__row .fineprint { margin: 0; flex: 1; text-align: left; }
-.board__row .btn { padding: 7px 14px; font-size: 12.5px; }
+.board__row { display: flex; align-items: center; gap: 10px; }
+.board__row .fineprint { margin: 0; white-space: nowrap; }
+.board__row .btn { padding: 9px 16px; font-size: 13px; }
 .pill {
   background: var(--accent);
   color: #fff;

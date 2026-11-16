@@ -105,7 +105,9 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
   Everyone has a character labelled with their display name — the tag is hung
   by its underside from just above the head, so it clears the character at
   every scale rather than covering their face — and coloured deterministically
-  from their id, so you look the same to everyone. Walk with
+  from their id, so you look the same to everyone. The countdown is a board
+  mounted on the room's back wall rather than a panel floating over the floor,
+  so it never covers the furniture or the people. Walk with
   the arrow keys or WASD, or click where you want to go; only the walls stop
   you, so you can stand at a desk rather than beside it. Phase colour becomes
   the room's light: warm lamps on focus, cooler on a break. **Hide the room**
@@ -121,8 +123,8 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
   furniture behind a confirm. Edits travel one item at a time rather than as
   a whole layout, so two people rearranging at once merge instead of
   overwriting each other.
-- **A message board (留言板).** A panel in the rail, not a dialog behind a
-  button: the notes are simply there, with the latest first and a badge when
+- **A message board (留言板).** Under the doodle wall and as wide as the room,
+  not a dialog behind a button: the notes are simply there, with the latest first and a badge when
   something arrived since you last looked. They outlive every session in the
   room and go only when the room does. Anyone can take any note down, exactly
   as anyone can move the furniture — there are no accounts here, so there is
@@ -132,7 +134,9 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
   silently.
 - **A doodle wall (涂鸦墙)** below the room, exactly as wide and drawn at the
   same pixel size, so it reads as part of the same world. Thirteen pens, three
-  nib sizes and an eraser; everyone draws on it at once. It is a fixed grid of
+  nib sizes and an eraser — a drawn rubber, with a box on the canvas showing
+  the exact area the nib will cover, because you cannot aim an eraser whose
+  edges you cannot see. Everyone draws on it at once. It is a fixed grid of
   cells rather than a list of strokes, which is what makes "it stays until the
   room is deleted" a promise worth making: a stroke list grows without limit
   and would eventually have to start discarding the oldest, while a grid costs
