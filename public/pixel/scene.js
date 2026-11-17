@@ -100,7 +100,7 @@ function paintBackdrop(ctx) {
 export class PixelRoom {
   /**
    * @param {HTMLCanvasElement} canvas
-   * @param {{onMove: Function, onPlace: Function, onRemove: Function}} hooks
+   * @param {{onMove: Function, onPlace: Function, onRemove: Function, onMoveItem: Function}} hooks
    */
   constructor(canvas, hooks = {}) {
     this.canvas = canvas;
@@ -109,6 +109,7 @@ export class PixelRoom {
     this.onMove = hooks.onMove || (() => {});
     this.onPlace = hooks.onPlace || (() => {});
     this.onRemove = hooks.onRemove || (() => {});
+    this.onMoveItem = hooks.onMoveItem || (() => {});
 
     this.people = new Map();
     this.meId = null;
@@ -122,8 +123,9 @@ export class PixelRoom {
 
     this.layout = DEFAULT_LAYOUT;
     this.editing = false;
-    this.tool = "desk"; // catalogue id, or "erase"
+    this.tool = "move"; // "move", "erase", or a catalogue id to place
     this.hover = null;
+    this.drag = null; // the piece in hand while moving furniture
 
     this.bg = document.createElement("canvas");
     this.bg.width = ROOM_W;
@@ -150,14 +152,23 @@ export class PixelRoom {
   /** Re-draw the room's furniture into the offscreen canvas. */
   bake() {
     paintBackdrop(this.bgx);
-    for (const item of this.layout) {
+    this.layout.forEach((item, k) => {
+      // The piece being carried is drawn live, following the pointer, so it
+      // is left out of the baked room — otherwise it would be in two places.
+      if (this.drag && this.drag.k === k) return;
       if (CATALOGUE[item.i]) paintItem(this.bgx, item.i, item.x, item.y);
-    }
+    });
   }
 
   setLayout(layout) {
     if (!Array.isArray(layout)) return;
     this.layout = layout;
+    // Someone else changed the room mid-drag; the index we were holding may
+    // now point at a different piece, so let go rather than move the wrong one.
+    if (this.drag) {
+      const it = layout[this.drag.k];
+      if (!it || it.i !== this.drag.i || it.x !== this.drag.fromX || it.y !== this.drag.fromY) this.drag = null;
+    }
     this.bake();
   }
 
@@ -165,7 +176,11 @@ export class PixelRoom {
     this.editing = on;
     if (tool) this.tool = tool;
     if (!on) this.hover = null;
-    this.canvas.style.cursor = on ? "crosshair" : "pointer";
+    if (this.drag) {
+      this.drag = null;
+      this.bake();
+    }
+    this.canvas.style.cursor = on ? (this.tool === "move" ? "default" : "crosshair") : "pointer";
   }
 
   /** Topmost item under a point — the last one placed wins. */
@@ -251,16 +266,54 @@ export class PixelRoom {
         if (k >= 0) this.onRemove(k);
         return;
       }
+      if (this.tool === "move") {
+        const k = this.itemAt(p.x, p.y);
+        if (k < 0) return;
+        const it = this.layout[k];
+        // Hold it by the point you grabbed, not by its corner, so it doesn't
+        // jump under the pointer the moment you pick it up.
+        this.drag = { k, i: it.i, fromX: it.x, fromY: it.y, dx: p.x - it.x, dy: p.y - it.y, x: it.x, y: it.y };
+        this.canvas.setPointerCapture?.(e.pointerId);
+        this.canvas.style.cursor = "grabbing";
+        this.bake();
+        return;
+      }
       const { w, h } = itemSize(this.tool);
       this.onPlace(this.tool, snap(p.x - w / 2), snap(p.y - h / 2));
     });
 
     this.canvas.addEventListener("pointermove", (e) => {
       if (!this.editing) return;
-      this.hover = this.pointAt(e);
+      const p = this.pointAt(e);
+      this.hover = p;
+      if (this.tool !== "move") return;
+      if (this.drag) {
+        this.drag.x = snap(p.x - this.drag.dx);
+        this.drag.y = snap(p.y - this.drag.dy);
+      } else {
+        this.canvas.style.cursor = this.itemAt(p.x, p.y) >= 0 ? "grab" : "default";
+      }
+    });
+
+    const drop = () => {
+      const d = this.drag;
+      if (!d) return;
+      this.drag = null;
+      if (d.x !== d.fromX || d.y !== d.fromY) {
+        // Put it down here at once; the server's layout follows and confirms.
+        this.layout = this.layout.map((o, n) => (n === d.k ? { ...o, x: d.x, y: d.y } : o));
+        this.onMoveItem(d.k, d);
+      }
+      this.canvas.style.cursor = "grab";
+      this.bake();
+    };
+    this.canvas.addEventListener("pointerup", drop);
+    this.canvas.addEventListener("pointercancel", () => {
+      this.drag = null;
+      this.bake();
     });
     this.canvas.addEventListener("pointerleave", () => {
-      this.hover = null;
+      if (!this.drag) this.hover = null; // a captured drag keeps going off the edge
     });
   }
 
@@ -455,6 +508,29 @@ export class PixelRoom {
     ctx.fillStyle = "rgba(255,255,255,0.07)";
     for (let x = 0; x < ROOM_W; x += GRID) ctx.fillRect(x, 0, 1, ROOM_H);
     for (let y = 0; y < ROOM_H; y += GRID) ctx.fillRect(0, y, ROOM_W, 1);
+    if (this.tool === "move") {
+      if (this.drag) {
+        // The piece in hand, with its outline, where it would land.
+        const { w, h } = itemSize(this.drag.i);
+        ctx.globalAlpha = 0.85;
+        paintItem(ctx, this.drag.i, this.drag.x, this.drag.y);
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = "rgba(255,255,255,0.9)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(this.drag.x - 0.5, this.drag.y - 0.5, w + 1, h + 1);
+        return;
+      }
+      if (!this.hover) return;
+      const k = this.itemAt(this.hover.x, this.hover.y);
+      if (k < 0) return;
+      const it = this.layout[k];
+      const { w, h } = itemSize(it.i);
+      ctx.strokeStyle = "rgba(255,255,255,0.75)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(it.x - 0.5, it.y - 0.5, w + 1, h + 1);
+      return;
+    }
+
     if (!this.hover) return;
 
     if (this.tool === "erase") {

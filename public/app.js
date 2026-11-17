@@ -3,7 +3,7 @@
    offset between this device's clock and the room's. */
 
 import { PixelRoom, FLOOR_TOP } from "./pixel/scene.js";
-import { ICONS, ICON_IDS, iconDataURL, ITEM_IDS, itemSize, paintItem, ERASER, blit, spriteSize } from "./pixel/art.js";
+import { ICONS, ICON_IDS, iconDataURL, ITEM_IDS, itemSize, paintItem, ERASER, ERASER_TINT, HAND, HAND_TINT, blit, spriteSize } from "./pixel/art.js";
 import { WALL_W, WALL_H, WALL_PENS, PEN_COUNT, blankWall, decodeWall } from "./pixel/wall.js";
 import { LANGS, t, ago, logLine, lang, setLang, initLang } from "./i18n.js";
 
@@ -404,6 +404,8 @@ class Room {
       },
       onPlace: (i, x, y) => this.send({ type: "place", i, x, y }),
       onRemove: (index) => this.send({ type: "removeItem", index }),
+      onMoveItem: (index, d) =>
+        this.send({ type: "moveItem", index, i: d.i, fromX: d.fromX, fromY: d.fromY, x: d.x, y: d.y }),
     });
     this.buildPalette();
     this.applyRoomVisibility();
@@ -414,8 +416,11 @@ class Room {
   buildPalette(rebuild = false) {
     const host = $("palette");
     if (host.childElementCount && !rebuild) return;
-    const chosen = rebuild ? this.currentTool() : "desk";
+    const chosen = rebuild ? this.currentTool() : "move";
     host.innerHTML =
+      `<button type="button" class="tool tool--hand" role="radio" data-tool="move" aria-checked="${chosen === "move"}" title="${esc(t("dec.moveTitle"))}">
+         <img src="${spriteIcon("hand", HAND, HAND_TINT)}" alt="" /><span>${esc(t("dec.move"))}</span>
+       </button>` +
       ITEM_IDS.map(
         (id) =>
           `<button type="button" class="tool" role="radio" data-tool="${id}" aria-checked="${id === chosen}" title="${esc(t(`item.${id}`))}">
@@ -423,7 +428,7 @@ class Room {
            </button>`,
       ).join("") +
       `<button type="button" class="tool tool--erase" role="radio" data-tool="erase" aria-checked="${chosen === "erase"}" title="${esc(t("dec.removeTitle"))}">
-         <img src="${rubberIcon()}" alt="" /><span>${esc(t("dec.remove"))}</span>
+         <img src="${spriteIcon("eraser", ERASER, ERASER_TINT)}" alt="" /><span>${esc(t("dec.remove"))}</span>
        </button>`;
 
     for (const b of host.children) {
@@ -444,7 +449,7 @@ class Room {
 
   currentTool() {
     const picked = $("palette").querySelector('[aria-checked="true"]');
-    return picked?.dataset.tool || "desk";
+    return picked?.dataset.tool || "move";
   }
 
   applyRoomVisibility() {
@@ -527,7 +532,7 @@ class Room {
         )
         .join("") +
       `<button type="button" class="pen pen--erase" role="radio" data-pen="0" aria-checked="false" title="${esc(t("wall.eraser"))}">
-         <img src="${rubberIcon()}" alt="${esc(t("wall.eraser"))}" />
+         <img src="${spriteIcon("eraser", ERASER, ERASER_TINT)}" alt="${esc(t("wall.eraser"))}" />
        </button>
        <span class="gap"></span>` +
       [1, 2, 4]
@@ -1206,11 +1211,11 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-/** The eraser button's rubber, drawn rather than set in a glyph. */
-let rubberUrl = null;
-function rubberIcon() {
-  if (rubberUrl) return rubberUrl;
-  const { w, h } = spriteSize(ERASER);
+/** Tool icons — the eraser and the hand — drawn from sprites, not glyphs. */
+const iconUrls = new Map();
+function spriteIcon(key, sprite, tint) {
+  if (iconUrls.has(key)) return iconUrls.get(key);
+  const { w, h } = spriteSize(sprite);
   const scale = 3;
   const c = document.createElement("canvas");
   c.width = w * scale;
@@ -1218,9 +1223,9 @@ function rubberIcon() {
   const ctx = c.getContext("2d");
   ctx.imageSmoothingEnabled = false;
   ctx.scale(scale, scale);
-  blit(ctx, ERASER, 0, 0);
-  rubberUrl = c.toDataURL();
-  return rubberUrl;
+  blit(ctx, sprite, 0, 0, tint);
+  iconUrls.set(key, c.toDataURL());
+  return iconUrls.get(key);
 }
 
 /** A furniture thumbnail for the palette, drawn from the same sprite data. */

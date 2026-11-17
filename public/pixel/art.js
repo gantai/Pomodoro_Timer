@@ -141,18 +141,42 @@ export const MONITOR = [
   "...00000000000000...",
 ];
 
-/** A rubber, for the doodle wall's eraser button. */
+/**
+ * The eraser: a plastic block in a paper sleeve, modelled on a Tombow MONO —
+ * white rubber showing at one end, the sleeve in pale blue with its white
+ * band, the lettering, and the black stripe. Draw it with ERASER_TINT.
+ */
 export const ERASER = [
-  "...0000.....",
-  "..0WWWW00...",
-  ".0WWWWWW00..",
-  "0WWWWWWWWW0.",
-  "0RRRRRRRRRR0",
-  "0RRRRRRRRRR0",
-  "0rrrrrrrrrr0",
-  ".0rrrrrrrr0.",
-  "..00000000..",
+  ".000000000000000000.",
+  "0WWWW0BBBBBBBBBBBBB0",
+  "0WWWW0bbbbbbbbbbbbb0",
+  "0WWWW0WWWWWWWWWWWWW0",
+  "0WWWW0WkWkWWkkWkWkW0",
+  "0WWWW0WWWWWWWWWWWWW0",
+  "0nnnn0kkkkkkkkkkkkk0",
+  "0nnnn0bbbbbbbbbbbbb0",
+  ".000000000000000000.",
 ];
+export const ERASER_TINT = { B: "#b4c8ea", b: "#7f9dd4" };
+
+/** The hand, for picking furniture up and putting it down somewhere else. */
+export const HAND = [
+  "....00.........",
+  ".000KK000......",
+  "0KK0KK0KK0.....",
+  "0KK0KK0KK000...",
+  "0KK0KK0KK0KK0..",
+  "0KK0KK0KK0KK0..",
+  "0KKLKKLKKLKK0..",
+  "0KKKKKKKKKKK000",
+  "0KKKKKKKKKKKKK0",
+  "0KKKKKKKKKKKK0.",
+  "0KKKKKKKKKKK0..",
+  ".0KKKKKKKKKK0..",
+  "..0KKKKKKKK0...",
+  "...00000000....",
+];
+export const HAND_TINT = { K: "#f3cfa6", L: "#d9a87c" };
 
 /**
  * A two-seat sofa, in brown fabric.

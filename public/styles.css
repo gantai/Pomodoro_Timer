@@ -652,7 +652,8 @@ body.paused .wallclock .time { color: #a08a6b; }
 .tool:hover { border-color: var(--accent); }
 .tool[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .tool[aria-checked="true"] span { color: var(--accent); }
-.tool--erase img { width: 24px; height: 18px; object-fit: contain; }
+.tool--erase img { width: 30px; height: 14px; object-fit: contain; }
+.tool--hand img { width: 22px; height: 21px; object-fit: contain; }
 
 .decorate__acts {
   display: flex;
@@ -882,7 +883,7 @@ body.paused .wallclock .time { color: #a08a6b; }
 .pen:hover { border-color: var(--line-strong); }
 .pen[aria-checked="true"] { border-color: var(--ink); transform: scale(1.12); }
 .pen--erase { background: var(--surface); display: grid; place-items: center; }
-.pen--erase img { width: 18px; height: 13px; image-rendering: pixelated; display: block; }
+.pen--erase img { width: 20px; height: 9px; image-rendering: pixelated; display: block; }
 .pens .gap { width: 10px; }
 .nib {
   width: 28px;

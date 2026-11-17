@@ -118,8 +118,10 @@ Sockets use WebSocket Hibernation, so an idle room costs nothing to keep open.
   desks, chairs, a brown two-seat sofa, an electric sit-stand desk with the
   perching stool that goes with it, shelves, plants, windows, a clock, a rug,
   a cat — and clicking
-  the room places the selected piece on an 8px grid; the eraser takes things
-  away. Every change is shared, persisted with the room and covered by the
+  the room places the selected piece on an 8px grid; the hand picks up a piece
+  that is already there and drags it somewhere else, and the eraser takes
+  things away. The hand is what you're holding when the tray opens, so a
+  stray click rearranges nothing rather than dropping a desk. Every change is shared, persisted with the room and covered by the
   same 30-day expiry, so a group's arrangement is still there tomorrow. Undo
   steps back one change for everyone, and *Reset room* restores the original
   furniture behind a confirm. Edits travel one item at a time rather than as

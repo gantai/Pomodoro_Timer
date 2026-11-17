@@ -471,6 +471,34 @@ export class TimerRoom {
         return;
       }
 
+      // Picking something up and putting it down elsewhere. The client names
+      // the piece by index *and* by what it was and where it stood, because
+      // someone else may have added or removed furniture while it was being
+      // dragged — and an index alone would then move the wrong thing.
+      case "moveItem": {
+        const fits = (n) => {
+          const o = s.layout[n];
+          return o && o.i === msg.i && o.x === msg.fromX && o.y === msg.fromY;
+        };
+        let k = Math.round(Number(msg.index));
+        if (!fits(k)) k = s.layout.findIndex((_, n) => fits(n));
+        if (k < 0) {
+          // Gone or already moved: put the mover's room back in step.
+          ws.send(JSON.stringify({ type: "layout", layout: s.layout }));
+          return;
+        }
+        const moved = cleanItem({ i: s.layout[k].i, x: msg.x, y: msg.y });
+        if (!moved || (moved.x === s.layout[k].x && moved.y === s.layout[k].y)) return;
+        s.prevLayout = s.layout.map((o) => ({ ...o }));
+        // Same index, so it keeps its place in the stacking order.
+        s.layout = s.layout.map((o, n) => (n === k ? moved : o));
+        this.addLog("moved", { name: me.name, item: moved.i });
+        await this.save();
+        this.broadcastLayout();
+        this.broadcast();
+        return;
+      }
+
       case "resetLayout": {
         s.prevLayout = s.layout.map((o) => ({ ...o }));
         s.layout = DEFAULT_LAYOUT.map((o) => ({ ...o }));
